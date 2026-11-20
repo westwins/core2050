@@ -1,0 +1,26 @@
+services:
+  core2050-backend:
+    build:
+      context: ./backend
+    container_name: core2050_api
+    restart: unless-stopped
+    expose:
+      - "8000"
+    networks:
+      - core2050_net
+
+  core2050-frontend:
+    build:
+      context: ./frontend
+    container_name: core2050_web
+    restart: unless-stopped
+    depends_on:
+      - core2050-backend
+    ports:
+      - "8092:80"
+    networks:
+      - core2050_net
+
+networks:
+  core2050_net:
+    driver: bridge

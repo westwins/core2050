@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CORE 2050 — 로그스케일 3D HGIS · AI 햇살마을 ABM · 국민개발자 오토마타 시뮬레이터</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      --bg-deep: #070b14;
+      --bg-panel: rgba(15, 23, 42, 0.88);
+      --border-subtle: rgba(148, 163, 184, 0.18);
+      --amber-glow: #f59e0b;
+      --gold-soft: #fde68a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 15% 15%, #131c31 0%, #070b14 60%, #04070d 100%);
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.84);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .gold-border {
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      box-shadow: 0 0 24px rgba(245, 158, 11, 0.12);
+    }
+    .tab-active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.24), rgba(217, 119, 6, 0.12));
+      border-color: rgba(251, 191, 36, 0.75);
+      color: #fef3c7;
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.22);
+    }
+    #hgisMapWrap {
+      position: relative;
+      height: 540px;
+      width: 100%;
+      border-radius: 0.875rem;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: #090d16;
+    }
+    #hgisMap {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: #090d16;
+    }
+    #prismOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 400;
+      pointer-events: auto;
+      cursor: grab;
+    }
+    #prismOverlay:active {
+      cursor: grabbing;
+    }
+    .leaflet-control-attribution {
+      background: rgba(7, 11, 20, 0.78) !important;
+      color: #94a3b8 !important;
+      font-size: 10px !important;
+    }
+    .leaflet-control-attribution a { color: #fbbf24 !important; }
+    input[type="range"] {
+      accent-color: #f59e0b;
+    }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.45); border-radius: 9999px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Workbench Header -->
+  <header class="sticky top-0 z-50 border-b border-slate-800/90 bg-slate-950/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-700 flex items-center justify-center shadow-lg shadow-amber-500/20 font-black text-slate-950 text-sm">
+          C50
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold tracking-wider uppercase px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">K-BALANCE 2026 특별세션</span>
+            <span class="text-xs text-slate-400 hidden md:inline">2026. 12. 10.(목) 청주 오송 C&amp;V센터 · 2050 비전 라운드테이블</span>
+          </div>
+          <h1 class="text-sm sm:text-base font-bold text-slate-100 leading-tight mt-0.5">
+            지능 에이전트 고속도로 &amp; AI 햇살마을 3D HGIS·ABM 실증 워크벤치
+          </h1>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <button id="quickScaleBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition flex items-center gap-1.5" title="단축키 L: 선형 총량 ↔ 로그스케일 3D 즉시 전환">
+          <span class="px-1.5 py-0.2 bg-amber-400/20 rounded text-[10px] font-mono">L</span>
+          <span id="quickScaleLabel">로그(log10) 3D 코어 활성</span>
+        </button>
+        <button id="openBriefBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1">
+          <span class="px-1 bg-slate-700 rounded text-[10px] font-mono">P</span>
+          <span>4대 축 요약</span>
+        </button>
+        <button id="openQrBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1">
+          <span class="px-1 bg-emerald-500/20 rounded text-[10px] font-mono">Q</span>
+          <span>현장 QR</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main 3-Tab Navigation -->
+    <nav class="max-w-7xl mx-auto px-3 sm:px-6 pb-2 flex gap-1.5 overflow-x-auto custom-scroll">
+      <button id="tabBtn1" type="button" data-tab="1" class="main-tab-btn tab-active px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-700/80 text-slate-300 transition whitespace-nowrap flex items-center gap-2">
+        <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-900/80 text-amber-300">01</span>
+        <span>선형 총량 지도 vs 로그(log10) 3D 코어 HGIS</span>
+      </button>
+      <button id="tabBtn2" type="button" data-tab="2" class="main-tab-btn px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-700/80 text-slate-300 hover:bg-slate-800/60 transition whitespace-nowrap flex items-center gap-2">
+        <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-900/80 text-emerald-300">02</span>
+        <span>2026→2050 AI 햇살마을 ABM 시뮬레이터</span>
+      </button>
+      <button id="tabBtn3" type="button" data-tab="3" class="main-tab-btn px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-700/80 text-slate-300 hover:bg-slate-800/60 transition whitespace-nowrap flex items-center gap-2">
+        <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-900/80 text-sky-300">03</span>
+        <span>국민개발자 일회용 오토마타 실증 (98% 절감)</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-5">
+
+    <!-- ==================== TAB 1: 3D HGIS ==================== -->
+    <section id="panel1" class="space-y-4">
+      <!-- Top Control & Paradigm Banner -->
+      <div class="glass-card rounded-xl p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span id="modeStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40">
+              현재 시각계: 로그스케일(log10) 3D 생존 코어 HGIS
+            </span>
+            <span class="text-xs text-slate-400">
+              디지털역사학 HGIS 이식 · [미기후·서리 밀도 × 30년 농부 숙련 암묵지 × 역사·치유 서사]
+            </span>
+          </div>
+          <p id="modeDynamicDesc" class="text-xs sm:text-sm text-slate-300">
+            인구 총량 비례에서는 0처럼 짓눌리던 <strong class="text-amber-300">예산·충주·단양·금산·부여·공주</strong> 골짜기가 로그스케일(<code class="text-amber-200">log10</code>) 전환 즉시 황금빛 고부가가치 산업 기둥으로 융기합니다. 지도 기둥이나 우측 거점을 클릭해 <strong>5대 상속 AI 스토리텔링</strong>을 확인하세요.
+          </p>
+        </div>
+
+        <!-- Scale Mode Switcher -->
+        <div class="flex items-center gap-2 shrink-0 flex-wrap">
+          <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-700/90">
+            <button id="btnLinearMode" type="button" class="px-3 py-2 rounded-lg text-xs font-bold transition text-slate-400 hover:text-slate-200">
+              선형 총량 지도 (Linear)
+            </button>
+            <button id="btnLogMode" type="button" class="px-3.5 py-2 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-md">
+              로그스케일 3D 코어 (log10)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map + Right 5-Inheritance Inspector Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Left 7 cols: Interactive Leaflet + 3D Prism/KDE Canvas -->
+        <div class="lg:col-span-7 space-y-3">
+          <div id="hgisMapWrap">
+            <div id="hgisMap"></div>
+            <canvas id="prismOverlay"></canvas>
+
+            <!-- Floating Top-Left HUD -->
+            <div class="absolute top-3 left-12 z-[450] pointer-events-none max-w-xs bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-xs space-y-1">
+              <div class="font-bold text-amber-300 flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="hudTitle">log10(미기후 × 숙련 암묵지 × 역사 서사)</span>
+              </div>
+              <div id="hudFormula" class="text-[11px] text-slate-300 leading-snug">
+                서울 대비 예산 선형비 <span class="text-rose-400 font-semibold">0.81%</span> → 로그 코어지수 <span class="text-amber-300 font-semibold">4.89</span> (대등 성좌화)
+              </div>
+            </div>
+
+            <!-- Floating Bottom-Left Legend -->
+            <div class="absolute bottom-3 left-3 z-[450] pointer-events-none bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-[11px] space-y-1.5">
+              <div class="font-semibold text-slate-200">3D 프리즘 &amp; 서바이버 트레일 범례</div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="flex items-center gap-1 text-amber-300"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> K-애플·인삼·역사 생존 코어</span>
+                <span class="flex items-center gap-1 text-sky-300"><span class="w-2.5 h-2.5 rounded-sm bg-sky-400 inline-block"></span> 행정·바이오·대학 허브</span>
+                <span class="flex items-center gap-1 text-slate-400"><span class="w-2.5 h-2.5 rounded-sm bg-slate-400 inline-block"></span> 수도권 총량 기준축</span>
+              </div>
+              <div class="text-slate-400">기둥 클릭: 거점 5대 상속 팝업 · 드래그/휠: 지도 이동·확대</div>
+            </div>
+          </div>
+
+          <!-- 3D Camera & Layer Controls Bar -->
+          <div class="glass-card rounded-xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 items-center text-xs">
+            <div>
+              <div class="flex justify-between text-slate-400 mb-1">
+                <span>3D 기둥 고도 배율</span>
+                <span id="elevValLabel" class="font-mono text-amber-300">1.15x</span>
+              </div>
+              <input id="elevSlider" type="range" min="0.5" max="1.8" step="0.05" value="1.15" class="w-full" />
+            </div>
+            <div>
+              <div class="flex justify-between text-slate-400 mb-1">
+                <span>3D 투영 각도(Pitch)</span>
+                <span id="pitchValLabel" class="font-mono text-amber-300">32°</span>
+              </div>
+              <input id="pitchSlider" type="range" min="12" max="52" step="2" value="32" class="w-full" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200">
+                <input id="chkHeatmap" type="checkbox" checked class="rounded accent-amber-500" />
+                <span>네온 KDE 히트맵</span>
+              </label>
+              <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200">
+                <input id="chkTrailArc" type="checkbox" checked class="rounded accent-amber-500" />
+                <span>충청 서바이버 트레일 아크</span>
+              </label>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <button id="btnToggleTile" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 font-medium transition">
+                위성 영상 베이스맵 전환
+              </button>
+              <button id="btnResetView" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-medium transition">
+                충청·소백권 표준 뷰 복원
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right 5 cols: Node Selector Pills + 5-Inheritance AI Storytelling Card -->
+        <div class="lg:col-span-5 flex flex-col gap-3">
+          <!-- Node Quick Selector -->
+          <div class="glass-card rounded-xl p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">거점 선택 (클릭 시 5대 상속 상세 조회)</span>
+              <span class="text-[11px] text-amber-300 font-mono">9개 실측 거점</span>
+            </div>
+            <div id="nodePillContainer" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <!-- Selected Node Detail & 5-Domain Inheritance -->
+          <div id="nodeDetailCard" class="glass-card gold-border rounded-xl p-4 flex-1 flex flex-col justify-between space-y-3">
+            <!-- Dynamically populated by renderSelectedNode() -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: 2026->2050 ABM SIMULATOR ==================== -->
+    <section id="panel2" class="hidden space-y-4">
+      <!-- Top Principle Banner -->
+      <div class="glass-card rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            역할 분리 아키텍처 &amp; 몬테카를로 ABM (N=24)
+          </span>
+          <h2 class="text-base sm:text-lg font-bold text-slate-100 mt-1">
+            “상품의 서사는 극한의 야생(Core)으로 매섭게, 공공 인프라와 배당 혜택은 따스한 햇살처럼 고루”
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">
+            대기업 기성복 SW 종속·원물 헐값 출하에 머무는 일반 농촌 마을과, <strong>국민개발자 에이전트 분신 + 스카 에디션 업사이클링 + 오크통 코어에이징 락인</strong>을 결합한 AI 햇살마을의 2026~2050 궤적을 비교합니다.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-1.5 shrink-0">
+          <button type="button" data-preset="baseline" class="abm-preset-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 transition">
+            원물출하 현상유지
+          </button>
+          <button type="button" data-preset="pilot100" class="abm-preset-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 transition">
+            100일 실증 (300명·30과제)
+          </button>
+          <button type="button" data-preset="sunshine2050" class="abm-preset-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 transition">
+            2050 AI 햇살마을 완숙기
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Left 4 cols: 3 Sliders + Senior Habang Toggle -->
+        <div class="lg:col-span-4 space-y-3">
+          <div class="glass-card rounded-xl p-4 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-sm font-bold text-slate-100">정책·산업 레버 조작 (3대 변수)</span>
+              <span class="text-[11px] font-mono text-emerald-300">실시간 재연산</span>
+            </div>
+
+            <!-- Slider 1 -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <label for="slCitizenDev" class="font-semibold text-amber-200">① 국민개발자 전환율 (1인 다중 에이전트)</label>
+                <span id="valCitizenDev" class="font-mono font-bold text-amber-400">45%</span>
+              </div>
+              <input id="slCitizenDev" type="range" min="5" max="80" step="1" value="45" class="w-full" />
+              <p class="text-[11px] text-slate-400 leading-snug">
+                주민 1인당 평균 <span id="agentCountReadout" class="text-amber-300 font-semibold">135개</span> AI 분신 운용 · 외주 600만 원 SW를 10만 원 일회용 오토마타로 대체(98.3% 절감).
+              </p>
+            </div>
+
+            <!-- Slider 2 -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <label for="slScarUpcycle" class="font-semibold text-rose-200">② 스카 에디션 증류주·바이오 전환율</label>
+                <span id="valScarUpcycle" class="font-mono font-bold text-rose-400">40%</span>
+              </div>
+              <input id="slScarUpcycle" type="range" min="5" max="75" step="1" value="40" class="w-full" />
+              <p class="text-[11px] text-slate-400 leading-snug">
+                서리·우박 상처 낙과를 헐값 폐기하지 않고 K-칼바도스 증류주·폴리페놀 바이오·애플우드 훈연칩으로 역브랜딩 수매.
+              </p>
+            </div>
+
+            <!-- Slider 3 -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <label for="slCoreAging" class="font-semibold text-sky-200">③ 오크통 코어에이징 생활인구 락인율</label>
+                <span id="valCoreAging" class="font-mono font-bold text-sky-400">35%</span>
+              </div>
+              <input id="slCoreAging" type="range" min="5" max="70" step="1" value="35" class="w-full" />
+              <p class="text-[11px] text-slate-400 leading-snug">
+                우드버닝 각인 오크통 지하 숙성(1~3년 후 개봉 재방문) 및 도시 지식노동자 '딥 워크 벙커 스테이' 장기 체류 전환.
+              </p>
+            </div>
+
+            <!-- Toggle: Senior Knowledge Habang & Smart Dure -->
+            <div class="pt-2 border-t border-slate-800 space-y-2">
+              <label class="flex items-start gap-2.5 cursor-pointer">
+                <input id="chkSeniorHabang" type="checkbox" checked class="mt-1 rounded accent-emerald-500" />
+                <span class="text-xs text-slate-200 leading-snug">
+                  <strong class="text-emerald-300">시니어 지식 하방(下放) + AI 마을방(스마트 두레) 가동</strong><br />
+                  <span class="text-[11px] text-slate-400">수도권 은퇴 교수·의사·엔지니어와 국립공주대 등 지역대학·주민센터를 결합해 주민 암묵지를 글로벌 프로덕트로 자산화</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- AI Sunshine Village Visual Card -->
+          <div class="glass-card rounded-xl overflow-hidden">
+            <img src="assets/sunshine_dure_lounge.jpg" alt="AI 햇살마을 스마트 두레 커뮤니티 라운지" class="w-full h-40 object-cover max-w-full" />
+            <div class="p-3.5 space-y-1.5">
+              <div class="text-xs font-bold text-amber-300">토건 신축 없는 오프라인 멜팅팟 ‘AI 마을방’ &amp; 100일 실증</div>
+              <p class="text-[11px] text-slate-300 leading-relaxed">
+                1조 원 콘크리트 데이터센터 신축 대신 기존 주민센터·작은도서관·국립공주대 예산캠퍼스를 90년대 PC방 같은 <strong>스마트 두레</strong>로 전환합니다. 농촌·산업·문화관광 <strong>3개 생활권(주민 300명·30개 프로젝트) 100일 실증</strong>으로 즉시 착수합니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right 8 cols: KPIs + 2 Interactive Charts + 3-Stage Dividend Breakdown -->
+        <div class="lg:col-span-8 space-y-3.5">
+          <!-- 4 KPI Readouts -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="glass-card rounded-xl p-3 border-l-4 border-l-amber-400">
+              <div class="text-[11px] text-slate-400">2050 AI 햇살마을 가구소득</div>
+              <div id="kpiHouseholdIncome" class="text-lg sm:text-xl font-extrabold text-amber-300 mt-0.5">8,420만 원</div>
+              <div id="kpiIncomeMultiple" class="text-[11px] text-emerald-300 font-medium">원물출하 마을 대비 3.18배</div>
+            </div>
+            <div class="glass-card rounded-xl p-3 border-l-4 border-l-sky-400">
+              <div class="text-[11px] text-slate-400">연간 코어락인 생활인구</div>
+              <div id="kpiLivingPop" class="text-lg sm:text-xl font-extrabold text-sky-300 mt-0.5">4.62배</div>
+              <div id="kpiLivingPopSub" class="text-[11px] text-slate-300">정주인구 대비 재방문·체류 배수</div>
+            </div>
+            <div class="glass-card rounded-xl p-3 border-l-4 border-l-emerald-400">
+              <div class="text-[11px] text-slate-400">가구당 연 ‘AI 햇살 배당’</div>
+              <div id="kpiDividendTotal" class="text-lg sm:text-xl font-extrabold text-emerald-300 mt-0.5">1,480만 원</div>
+              <div class="text-[11px] text-slate-300">접근 + 암묵지 참여 + 성과 환원</div>
+            </div>
+            <div class="glass-card rounded-xl p-3 border-l-4 border-l-purple-400">
+              <div class="text-[11px] text-slate-400">맞춤형 SW 구축 한계비용</div>
+              <div class="text-lg sm:text-xl font-extrabold text-purple-300 mt-0.5">-98.3%</div>
+              <div class="text-[11px] text-slate-300">외주 600만 원 → 오토마타 10만 원</div>
+            </div>
+          </div>
+
+          <!-- Chart 1: Income Trajectory -->
+          <div class="glass-card rounded-xl p-4 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-bold text-slate-100">2026→2050 가구당 실질 총소득 궤적 비교 (단위: 만 원/년, N=24 몬테카를로 ±1 SD)</h3>
+                <p class="text-[11px] text-slate-400">원물출하·기성복 SW 종속 마을(회색 점선) vs AI 햇살마을 평균 및 기후·시장 변동 신뢰구간(황금 영역)</p>
+              </div>
+            </div>
+            <div class="relative h-72">
+              <canvas id="abmIncomeChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: 3-Stage AI Sunshine Dividend & Living Pop -->
+          <div class="glass-card rounded-xl p-4 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-bold text-slate-100">생산력 기본권 3단계 ‘AI 햇살 배당’ 누적 구조 및 재방문 생활인구 배수</h3>
+                <p class="text-[11px] text-slate-400">현금 살포 논쟁을 넘어선 ① 접근 배당(컴퓨팅·분신) → ② 참여 배당(현장 암묵지 자산화) → ③ 성과 배당(공동 스토리·증류주 수익 환원)</p>
+              </div>
+            </div>
+            <div class="relative h-72">
+              <canvas id="abmDividendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: CITIZEN DEVELOPER AUTOMATA ==================== -->
+    <section id="panel3" class="hidden space-y-4">
+      <!-- Top Cost-Collapse & Dialect Input Studio -->
+      <div class="glass-card gold-border rounded-xl p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
+              사스포칼립스 &amp; 바이브 코딩 실증
+            </span>
+            <h2 class="text-base sm:text-lg font-bold text-slate-100 mt-1">
+              농민의 사투리·자연어 발화 한 줄 → 일회용 맞춤형 수출·예약 오토마타 즉시 생성
+            </h2>
+          </div>
+          <div class="flex items-center gap-2 text-xs bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-700">
+            <span class="line-through text-slate-500">기존 외주 SI 600만 원 · 8주</span>
+            <span class="text-amber-400 font-bold">→ 일회용 오토마타 10만 원 · 즉시 생성 (98.3% 절감)</span>
+          </div>
+        </div>
+
+        <!-- Dialect Preset Chips -->
+        <div class="space-y-1.5">
+          <div class="text-xs font-semibold text-slate-400">현장 도메인 지휘자(농민·주민) 발화 예시 선택:</div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" data-utterance="0" class="dialect-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/20 text-amber-200 border border-amber-500/50 hover:bg-amber-500/30 transition text-left">
+              🍎 예산 신암면 32년차 농부: “우박 맞은 부사 400상자, 상처가 꿀 박힌 훈장이라고 다국어 스카 에디션 수출 페이지랑 오크통 불도장 예약표 맹글어줘유”
+            </button>
+            <button type="button" data-utterance="1" class="dialect-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition text-left">
+              ❄️ 충주 동량면 과수원: “첫서리 맞은 프로스트 바이트 사과랑 전정목 훈연칩 묶어서 플람베 다이닝·딥워크 벙커스테이 예약 앱 띄워봐유”
+            </button>
+            <button type="button" data-utterance="2" class="dialect-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition text-left">
+              🌿 금산·예산 서바이버 조합: “6년근 금산 인삼이랑 추사고택·수덕사, 오크통 브랜디 숙성 체험을 1박2일 글로벌 서바이버 패스로 엮어줘유”
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Prompt Bar -->
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="farmerPromptInput" type="text" value="올가을 우박 맞은 부사 400상자, 상처 자국이 서리 이겨내고 꿀(소르비톨) 박힌 훈장이라고 4개국어 스카 에디션 직수출 페이지랑 오크통 불도장 숙성 예약 앱 맹글어줘유!" class="flex-1 px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs sm:text-sm text-amber-100 focus:outline-none focus:border-amber-400" />
+          <button id="btnRunAutomata" type="button" class="px-4 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition whitespace-nowrap">
+            AI 분신 오케스트레이션 실행
+          </button>
+        </div>
+
+        <!-- 5-Step Agent Pipeline Status -->
+        <div id="agentPipelineBar" class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1 text-[11px]">
+          <div class="p-2 rounded-lg bg-slate-900/90 border border-emerald-500/40 text-emerald-300 font-medium">✓ 1. 생존 코어(Root) 추출</div>
+          <div class="p-2 rounded-lg bg-slate-900/90 border border-emerald-500/40 text-emerald-300 font-medium">✓ 2. 4개국어 서사 상속</div>
+          <div class="p-2 rounded-lg bg-slate-900/90 border border-emerald-500/40 text-emerald-300 font-medium">✓ 3. 직수출 결제 오토마타</div>
+          <div class="p-2 rounded-lg bg-slate-900/90 border border-emerald-500/40 text-emerald-300 font-medium">✓ 4. 오크통 불도장 각인기</div>
+          <div class="p-2 rounded-lg bg-amber-500/20 border border-amber-400/60 text-amber-200 font-bold">⚡ 컴파일 완료 (0.8초 · 10만 원)</div>
+        </div>
+      </div>
+
+      <!-- Generated Dual Micro-Apps Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Generated App A: Multilingual Scarred Honor Export Page (6 cols) -->
+        <div class="lg:col-span-6 glass-card rounded-xl overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="bg-slate-900/95 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="text-xs font-bold text-slate-200">생성 앱 ① — SCARRED HONOR 다국어 직수출 스토어</span>
+              </div>
+              <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px]">
+                <button type="button" data-lang="ko" class="lang-switch-btn px-2 py-1 rounded bg-amber-500 text-slate-950 font-bold">KO</button>
+                <button type="button" data-lang="en" class="lang-switch-btn px-2 py-1 rounded text-slate-300 hover:text-white">EN</button>
+                <button type="button" data-lang="ja" class="lang-switch-btn px-2 py-1 rounded text-slate-300 hover:text-white">JP</button>
+                <button type="button" data-lang="fr" class="lang-switch-btn px-2 py-1 rounded text-slate-300 hover:text-white">FR</button>
+              </div>
+            </div>
+
+            <div class="relative">
+              <img src="assets/scar_honor_hero.jpg" alt="Scarred Honor K-Apple & Oak Barrel" class="w-full h-48 object-cover max-w-full" />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-transparent"></div>
+              <div class="absolute bottom-3 left-4 right-4">
+                <span id="scarBadgeText" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500 text-slate-950">
+                  LIMITED HARVEST · YESAN-CHUNGJU-SOBAEK CORE
+                </span>
+                <h3 id="scarHeadline" class="text-lg font-extrabold text-white mt-1 leading-snug">
+                  스카 에디션 (Scarred Honor): 우박과 첫서리를 견딘 황금 밀병(蜜病) 사과
+                </h3>
+              </div>
+            </div>
+
+            <div class="p-4 space-y-3">
+              <p id="scarStoryBody" class="text-xs text-slate-300 leading-relaxed">
+                영하의 칼바람과 우박 상처를 스스로 치유하며 전분을 천연 꿀(소르비톨)과 항산화 폴리페놀로 고밀도 압축했습니다. 공판장 헐값 낙과가 아닌, 자연의 훈장을 새긴 하이엔드 디저트·플람베 다이닝 에디션입니다.
+              </p>
+
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                  <div class="text-[10px] text-slate-400">당도 · 소르비톨</div>
+                  <div id="scarMetric1" class="text-sm font-extrabold text-amber-300">17.8° Brix</div>
+                </div>
+                <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                  <div class="text-[10px] text-slate-400">껍질 폴리페놀</div>
+                  <div id="scarMetric2" class="text-sm font-extrabold text-emerald-300">+42% 고농축</div>
+                </div>
+                <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                  <div class="text-[10px] text-slate-400">산지 직수취율</div>
+                  <div id="scarMetric3" class="text-sm font-extrabold text-sky-300">89.0%</div>
+                </div>
+              </div>
+
+              <!-- Box Stepper & Live Margin Comparison -->
+              <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span id="scarQtyLabel" class="text-slate-300 font-medium">주문 수량 (3kg 프리미엄 기프트 우드박스)</span>
+                  <div class="flex items-center gap-2">
+                    <button id="btnBoxMinus" type="button" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold">-</button>
+                    <span id="boxQtyReadout" class="font-mono font-bold text-amber-300 w-8 text-center">2</span>
+                    <button id="btnBoxPlus" type="button" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold">+</button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
+                  <span class="text-slate-400">기존 공판장 원물 출하 시 농가 수취: <span id="wholesaleCompare" class="line-through text-slate-500">24,000원</span></span>
+                  <span class="font-bold text-amber-300 text-sm" id="scarTotalPrice">직수출 결제액: 136,000원</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-4 pb-4 space-y-2">
+            <button id="btnReserveScar" type="button" class="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm transition">
+              글로벌 직수출 프리오더 · 산지 직결제 시연
+            </button>
+            <div id="scarOrderToast" class="hidden p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- Generated App B: Oak Barrel Wood-Burning & Core Aging Lock-in App (6 cols) -->
+        <div class="lg:col-span-6 glass-card rounded-xl overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="bg-slate-900/95 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span class="text-xs font-bold text-slate-200">생성 앱 ② — 오크통 코어 에이징(K-칼바도스) 우드버닝 각인 예약</span>
+              </div>
+              <span class="text-[11px] font-mono text-amber-300">재방문 생활인구 락인 엔진</span>
+            </div>
+
+            <div class="p-4 space-y-3">
+              <!-- Live Pyrography Oak Barrel Head Canvas -->
+              <div class="flex flex-col sm:flex-row items-center gap-4 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                <canvas id="barrelCanvas" width="210" height="210" class="rounded-full shrink-0 shadow-inner"></canvas>
+                <div class="space-y-2 text-xs flex-1 w-full">
+                  <div class="text-amber-300 font-bold">실시간 오크통 경판 우드버닝(불도장) 미리보기</div>
+                  <div>
+                    <label for="inpVisitorName" class="block text-[11px] text-slate-400 mb-0.5">방문객 / 기관 각인명</label>
+                    <input id="inpVisitorName" type="text" maxlength="22" value="2026 지방시대 라운드테이블" class="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-amber-100 text-xs focus:outline-none focus:border-amber-400" />
+                  </div>
+                  <div>
+                    <label for="inpBarrelMotto" class="block text-[11px] text-slate-400 mb-0.5">서바이버 헌정 문구</label>
+                    <input id="inpBarrelMotto" type="text" maxlength="28" value="서리를 견딘 꿀, 2050 햇살로 익다" class="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-amber-400" />
+                  </div>
+                  <div>
+                    <span class="block text-[11px] text-slate-400 mb-1">지하 숙성고 보관 기간 (재방문 락인 주기)</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                      <button type="button" data-years="1" class="aging-yr-btn px-2 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-semibold text-[11px]">1년 (2027)</button>
+                      <button type="button" data-years="2" class="aging-yr-btn px-2 py-1.5 rounded bg-amber-500/25 text-amber-200 border border-amber-400 font-bold text-[11px]">2년 (2028)</button>
+                      <button type="button" data-years="3" class="aging-yr-btn px-2 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-semibold text-[11px]">3년 (2029)</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Lock-in Economics Readout -->
+              <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs space-y-1.5">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">지하 토굴 숙성 슬롯 번호</span>
+                  <span id="cellarSlotId" class="font-mono font-bold text-amber-300">YESAN-CAVE #B-042</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">예정 개봉 재방문일 (자동 알림 연동)</span>
+                  <span id="unsealDateReadout" class="font-mono font-semibold text-emerald-300">2028. 12. 10. (24개월 숙성 · 40% ABV)</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">유발 체류 효과 (숙성 확인 + 딥워크 스테이 + 트레일)</span>
+                  <span id="lockinVisitEffect" class="font-semibold text-sky-300">최소 3회 재방문 · 지역 소비 약 92만 원</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-4 pb-4 space-y-2">
+            <button id="btnIssueCertificate" type="button" class="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm transition">
+              우드버닝 각인 확정 및 지하 숙성고 디지털 보관증 발급
+            </button>
+            <div id="barrelCertToast" class="hidden p-3 rounded-lg bg-amber-500/15 border border-amber-400/50 text-amber-100 text-xs space-y-1"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Verified Grounding & Reference Footer -->
+    <footer class="border-t border-slate-800/80 pt-3 pb-6 text-[11px] text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <div>
+        <strong>데이터 및 실증 출처:</strong>
+        <a href="https://regionexpo.kr/page/s1/s1.php" target="_blank" rel="noopener" class="text-amber-300 hover:underline">2026 대한민국 지방시대 엑스포 공식 누리집</a> ·
+        <a href="https://kosis.kr/statHtml/statHtml.do?orgId=101&amp;tblId=DT_1YL20621" target="_blank" rel="noopener" class="text-amber-300 hover:underline">KOSIS 국가통계포털 주민등록인구</a> ·
+        <a href="https://www.ccdailynews.com/news/articleView.html?idxno=2352270" target="_blank" rel="noopener" class="text-amber-300 hover:underline">예산사과와인 추사50 세계 브랜디 품평회 금상</a> ·
+        <a href="https://dh.aks.ac.kr/Edu/wiki/index.php/%EA%B9%80%EC%A0%95%ED%9D%AC_%EC%84%A0%EC%83%9D_%EA%B3%A0%ED%83%9D(%E9%87%91%E6%AD%A3%E5%96%9C%E5%85%88%E7%94%9F%E6%95%85%E5%AE%85)" target="_blank" rel="noopener" class="text-amber-300 hover:underline">추사고택 HGIS 좌표</a>
+      </div>
+      <div class="font-mono text-slate-500">
+        단축키: [1·2·3] 탭 전환 · [L] 선형↔로그 · [P] 4대 축 요약 · [Q] 현장 QR
+      </div>
+    </footer>
+  </main>
+
+  <!-- ==================== MODAL 1: QR & ORACLE DOCKER DEPLOYMENT ==================== -->
+  <div id="qrModal" class="fixed inset-0 z-[900] hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card gold-border rounded-2xl max-w-md w-full p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">VIP 현장 시연 &amp; QR 공유</span>
+          <h3 class="text-base font-bold text-white mt-1">모바일·태블릿 즉시 접속 QR 코드</h3>
+        </div>
+        <button id="closeQrBtn" type="button" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">닫기 (ESC)</button>
+      </div>
+
+      <div class="flex flex-col items-center gap-3 py-2">
+        <div id="qrSvgMount" class="w-48 h-48 p-2 bg-white rounded-xl shadow-lg"></div>
+        <div class="text-center space-y-1">
+          <div class="font-mono text-sm font-bold text-amber-300">https://core2050.soohwalee.com</div>
+          <p class="text-xs text-slate-400">
+            스마트폰 카메라로 스캔하면 청주 오송 C&amp;V센터 라운드테이블 참석자 전원이 자신의 기기에서 3D HGIS와 ABM 슬라이더를 직접 조작할 수 있습니다.
+          </p>
+        </div>
+        <button id="btnCopyUrl" type="button" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold text-amber-200 transition">
+          배포 도메인 주소 복사 (https://core2050.soohwalee.com)
+        </button>
+        <div id="copyToast" class="hidden text-xs text-emerald-300 font-medium">클립보드에 복사되었습니다!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 2: 4-AXIS ARCHITECTURE BRIEF ==================== -->
+  <div id="briefModal" class="fixed inset-0 z-[900] hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card gold-border rounded-2xl max-w-2xl w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">2026 지방시대 엑스포 특별세션 토론문 핵심 구조</span>
+          <h3 class="text-base sm:text-lg font-bold text-white mt-1">‘지능 에이전트 고속도로’와 ‘AI 햇살마을 기본사회’ 4대 아키텍처</h3>
+        </div>
+        <button id="closeBriefBtn" type="button" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">닫기 (ESC)</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+          <div class="font-bold text-amber-300">축 1. 기성복 SW의 종언과 지능 에이전트 고속도로</div>
+          <p class="text-slate-300 leading-relaxed">고용 없는 콘크리트 데이터센터와 농민을 기계 문법에 가두는 대기업 패키지 스마트팜을 넘어, 경부·정보고속도로를 잇는 제3의 국가 기간망으로 전 주민이 30~300개 AI 에이전트(홍길동 분신)를 지휘하는 <strong>국민개발자 생태계</strong>를 구축합니다.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+          <div class="font-bold text-rose-300">축 2. 로컬 ‘생존 코어(Core)’ 5대 상속 AI 스토리텔링</div>
+          <p class="text-slate-300 leading-relaxed">서리와 우박을 이겨내며 전분을 꿀(소르비톨·밀병)로 압축한 생존 메커니즘을 마스터 클래스로 정의하고, <strong>① 스카 에디션 미식 · ② 오크통 코어에이징 락인 · ③ 딥워크 벙커 · ④ 충청 서바이버 트레일 · ⑤ K-칼바도스 증류주·바이오</strong>로 일관 상속합니다.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+          <div class="font-bold text-sky-300">축 3. 선형 총량 지도에서 로그스케일(log10) 3D HGIS로</div>
+          <p class="text-slate-300 leading-relaxed">인구·공장 수 선형 지도에서 0처럼 짓눌리던 읍·면 골짜기를 디지털역사학 HGIS의 <code>log10(미기후×암묵지×서사)</code> 스케일로 전환하여 예산·부여·충주·단양·금산마다 고유한 황금빛 산업 기둥을 실증합니다.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+          <div class="font-bold text-emerald-300">축 4. AI 햇살마을 기본사회 · 3단계 배당 · 100일 실증</div>
+          <p class="text-slate-300 leading-relaxed">주민센터·지역대학(국립공주대 등)을 <strong>AI 마을방(스마트 두레)</strong>으로 전환하고 은퇴 전문가 <strong>시니어 지식 하방</strong>을 결합합니다. <strong>접근·참여·성과 3단계 햇살 배당</strong>을 3개 생활권(300명·30프로젝트) <strong>100일 실증</strong>으로 즉시 가동합니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. VERIFIED REAL-WORLD HGIS NODE INVENTORY (100% Tool-Backed Coordinates)
+    // =========================================================================
+    var HGIS_NODES = [
+      {
+        id: "yesan",
+        name: "충남 예산군 (추사고택·수덕사·사과와인)",
+        shortName: "예산 코어",
+        category: "core",
+        lat: 36.7468,
+        lng: 126.7987,
+        pop: 77888,
+        popRef: "2026.10 행안부 주민등록인구",
+        sourceUrl: "https://www.ccdailynews.com/news/articleView.html?idxno=2352270",
+        sourceTitle: "예산사과 증류주 추사50 세계 브랜디 품평회 금상",
+        frostIdx: 94,
+        tacitMastery: 96,
+        narrativeIdx: 95,
+        logScore: 4.89,
+        rootCore: "예당평야 일교차·서리 밀병(소르비톨) 응축 × 추사 김정희 세한(歲寒) 정신 × 40년 과수·증류 숙련 암묵지",
+        vipLink: "박수현 지사 ‘AI 기본사회’ × 임경호 국립공주대 총장(예산 농생명 캠퍼스 직할) 핵심 실증 거점",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "첫서리 직후 수확한 ‘프로스트 바이트’ 생과 및 우박 상처로 당도·폴리페놀이 폭발한 ‘스카 에디션(Scarred Honor)’ 플람베 다이닝" },
+          { tag: "② 체험 (Lock-in)", text: "방문객이 직접 파쇄해 담근 프랑스산 오크통 애플 브랜디(추사 K-칼바도스 계승)에 이름·날짜 불도장 각인 후 지하 숙성고 1~3년 ‘코어 에이징’ 재방문 락인" },
+          { tag: "③ 경험 (Deep Work)", text: "덕산·수덕사 산자락 과수원 속 스마트폰 알림을 차단하고 집필·연구에 몰입하는 ‘딥 워크(Deep Work) 벙커 스테이’" },
+          { tag: "④ 여행 (Trail)", text: "예산 추사고택·수덕사 선(禪) 치유에서 공주·부여·금산 인삼·충주 사과로 이어지는 ‘충청 서바이버 트레일’ 서부 기점" },
+          { tag: "⑤ 산업 (Industry)", text: "흠집·낙과 전량 수매 K-칼바도스 증류주 밸리, 겨울 전정목 바비큐용 애플우드 훈연칩, 사과 껍질 폴리페놀 바이오 웰니스 원료화" }
+        ]
+      },
+      {
+        id: "chungju",
+        name: "충북 충주시 (소백산록 K-애플·증류주 밸리)",
+        shortName: "충주 코어",
+        category: "core",
+        lat: 36.9667,
+        lng: 127.9500,
+        pop: 213848,
+        popRef: "충주시 등록인구 통계",
+        sourceUrl: "https://en.wikipedia.org/wiki/Chungju",
+        sourceTitle: "충주시 남한강·충주호 분지 미기후 지형",
+        frostIdx: 93,
+        tacitMastery: 94,
+        narrativeIdx: 90,
+        logScore: 4.86,
+        rootCore: "충주호 수변 안개와 큰 밤낮 일교차가 빚어낸 고경도 과육 × 못난이·상처 사과 고부가가치 업사이클링",
+        vipLink: "신용한 충북지사 ‘스마트농업·못난이 농산물 고부가가치 업사이클링’ 도정 직결 거점",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "우박·강풍 흔적을 ‘자연이 찍은 당도 보증인’으로 역브랜딩한 ‘충주 스카 에디션’ 및 사과 시드르·플람베 코스" },
+          { tag: "② 체험 (Lock-in)", text: "충주호변 지하 터널 숙성고 개인별 미니 오크통 각인 분양 → 2년 뒤 가족·동료와 개봉 파티 재방문" },
+          { tag: "③ 경험 (Deep Work)", text: "남한강 수변과 과수원 통창을 마주한 수도권 개발자·연구자 대상 1주일 몰입형 ‘리버사이드 딥 워크 벙커’" },
+          { tag: "④ 여행 (Trail)", text: "충주 사과원 - 단양 소백산 고랭지 - 청주 오송을 잇는 북부 내륙 서바이버 트레일 축" },
+          { tag: "⑤ 산업 (Industry)", text: "못난이 사과 제로웨이스트 크래프트 증류소 클러스터, 사과박(Pomace) 식이섬유·펙틴 그린바이오 추출" }
+        ]
+      },
+      {
+        id: "danyang",
+        name: "충북 단양군 (소백산 고랭지 서리 코어)",
+        shortName: "단양 소백코어",
+        category: "core",
+        lat: 36.9436,
+        lng: 128.2372,
+        pop: 26812,
+        popRef: "단양군 주민등록인구",
+        sourceUrl: "https://en.wikipedia.org/wiki/Danyang_County",
+        sourceTitle: "단양군 소백산 석회암 고랭지 지형",
+        frostIdx: 98,
+        tacitMastery: 91,
+        narrativeIdx: 92,
+        logScore: 4.78,
+        rootCore: "인구 2.6만 명으로 선형 지도에서는 소멸위험 1순위로 가려지나, 해발 고랭지 칼바람·석회암 토양 당도 응축력은 전국 최상위",
+        vipLink: "임재만 국토연구원장 ‘국토공간 2050 다극 비전’ — 선형 소멸지표를 로그 잠재력으로 뒤집는 대표 물증",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "소백산 첫서리 직후 수확하는 극한 고당도 ‘소백 프로스트 바이트(Frost-Bite)’ 한정판 경매 에디션" },
+          { tag: "② 체험 (Lock-in)", text: "석회암 자연 동굴 천연 항온 숙성고 오크통 ‘케이브 코어 에이징’ 3년 숙성 회원권" },
+          { tag: "③ 경험 (Deep Work)", text: "옥순봉·소백산 능선 조망 디지털 디톡스 ‘마운틴 벙커 레지던시’" },
+          { tag: "④ 여행 (Trail)", text: "소백산 자락길 트레킹과 동굴 숙성고 시음을 결합한 알파인 서바이버 트레일 동부 종점" },
+          { tag: "⑤ 산업 (Industry)", text: "고랭지 사과 껍질 우르솔산·폴리페놀 고농축 추출물 및 프리미엄 훈연 우드칩 가공" }
+        ]
+      },
+      {
+        id: "geumsan",
+        name: "충남 금산군 (6년근 인삼 생존 코어)",
+        shortName: "금산 인삼코어",
+        category: "core",
+        lat: 36.1072,
+        lng: 127.4895,
+        pop: 48680,
+        popRef: "2026.10 충남 금산군 인구",
+        sourceUrl: "https://en.wikipedia.org/wiki/Geumsan_County",
+        sourceTitle: "금산군 6년근 인삼 집산지 지리 데이터",
+        frostIdx: 91,
+        tacitMastery: 97,
+        narrativeIdx: 93,
+        logScore: 4.81,
+        rootCore: "6년 동안 여섯 번의 혹한과 병충해를 버티며 땅속에서 진세노사이드(사포닌)를 응축한 인삼 생리학과 K-애플 생존 서사의 결합",
+        vipLink: "충청 서바이버 트레일 남부 핵심축 — 사과(소르비톨) × 인삼(사포닌) 바이오·미식 융합",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "6년근 금산 수삼과 예산·충주 스카 에디션 사과를 블렌딩한 ‘진생-애플 엘릭서’ 파인다이닝 페어링" },
+          { tag: "② 체험 (Lock-in)", text: "6년근 홍삼·애플 브랜디 침출 오크통 ‘식스윈터스(Six Winters) 각인 에이징’ 재방문 프로그램" },
+          { tag: "③ 경험 (Deep Work)", text: "금산 산림문화타운 연계 번아웃 회복형 ‘바이오 리커버리 딥 워크 스테이’" },
+          { tag: "④ 여행 (Trail)", text: "[예산 추사고택·사과 - 부여 백제고도 - 금산 6년근 인삼]을 잇는 ‘충청 서바이버 트레일’ 남부 허브" },
+          { tag: "⑤ 산업 (Industry)", text: "사과 폴리페놀 × 인삼 사포닌 복합 항노화 뉴트라슈티컬(오송 K-바이오 임상 연계)" }
+        ]
+      },
+      {
+        id: "buyeo",
+        name: "충남 부여군 (농촌 기본사회·스마트 두레 거점)",
+        shortName: "부여 두레코어",
+        category: "core",
+        lat: 36.2692,
+        lng: 126.9075,
+        pop: 57338,
+        popRef: "2026.10 충남 부여군 인구",
+        sourceUrl: "https://en.wikipedia.org/wiki/Wangh%C5%ADngsa",
+        sourceTitle: "부여 백제 사비기 역사문화 공간 좌표",
+        frostIdx: 86,
+        tacitMastery: 93,
+        narrativeIdx: 97,
+        logScore: 4.74,
+        rootCore: "1,400년 백제 사비 문화유산 서사 × 읍·면 공동체 두레 전통 × AI 마을방 주민 체감형 기본사회 실증",
+        vipLink: "박정현 지방시대위원장(전 부여군수) ‘농촌 기본사회·주민 체감 자치’ 철학과 정밀 조응",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "백마강 유역 특산 과채·밤·사과를 결합한 사비 왕실 현대식 발효·증류 다이닝" },
+          { tag: "② 체험 (Lock-in)", text: "마을 공동 숙성고 ‘두레 배럴(Dure Barrel)’ 지분 참여 및 절기별 수확·개봉 공동체 축제" },
+          { tag: "③ 경험 (Deep Work)", text: "고택·한옥 리모델링 공간에서 시니어 은퇴 전문가와 청년이 협업하는 ‘사비 지식 하방 사랑방’" },
+          { tag: "④ 여행 (Trail)", text: "수덕사·추사고택(예산) - 공주 - 부여 정림사지·궁남지 - 금산을 잇는 역사·치유 서바이버 루트" },
+          { tag: "⑤ 산업 (Industry)", text: "주민 암묵지 데이터 자산화에 기반한 ‘참여·성과형 AI 햇살 배당’ 지역화폐·공동체 기금 환류" }
+        ]
+      },
+      {
+        id: "gongju",
+        name: "충남 공주시 (국립공주대 ‘AI 마을방’ 인재 허브)",
+        shortName: "공주 대학허브",
+        category: "hub",
+        lat: 36.4556,
+        lng: 127.1247,
+        pop: 99311,
+        popRef: "2026.10 공주시 주민등록인구",
+        sourceUrl: "https://en.wikipedia.org/wiki/Gongju",
+        sourceTitle: "공주시 공간 좌표 및 거점 국립대 인프라",
+        frostIdx: 87,
+        tacitMastery: 92,
+        narrativeIdx: 95,
+        logScore: 4.72,
+        rootCore: "국립공주대(공주 본교·예산 농생명 캠퍼스) 지산학 거점 × 시니어 지식 하방 코디네이팅 허브",
+        vipLink: "임경호 국립공주대 총장 — 토건 신축 없이 대학·주민센터를 ‘AI 마을방(스마트 두레)’으로 전환하는 핵심 축",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "공주 알밤·예산 사과 크래프트 블렌딩 디저트 및 오크 숙성 리큐르 R&D" },
+          { tag: "② 체험 (Lock-in)", text: "예산 농생명 캠퍼스 발효·증류 실습실 연계 시민 양조·우드버닝 마스터 클래스" },
+          { tag: "③ 경험 (Deep Work)", text: "수도권 은퇴 교수·엔지니어가 체류하며 농민 암묵지를 AI 에이전트로 엮는 ‘시니어 지식 하방 캠프’" },
+          { tag: "④ 여행 (Trail)", text: "공산성·마곡사 치유 숲길과 예산·부여를 연결하는 인문·생태 트레일 중심점" },
+          { tag: "⑤ 산업 (Industry)", text: "농민 자연어 발화를 10만 원 일회용 맞춤형 오토마타로 즉시 변환하는 대학-마을 공동 ‘공공 하네스’ 운영" }
+        ]
+      },
+      {
+        id: "osong",
+        name: "청주 오송읍 (2026 엑스포 현장 · K-바이오 허브)",
+        shortName: "청주 오송허브",
+        category: "hub",
+        lat: 36.6208,
+        lng: 127.3278,
+        pop: 889319,
+        popRef: "2026 청주시 주민등록인구",
+        sourceUrl: "https://regionexpo.kr/page/s2/s1.php",
+        sourceTitle: "2026 지방시대 엑스포 개최지 및 오송 K-바이오 거점",
+        frostIdx: 82,
+        tacitMastery: 95,
+        narrativeIdx: 89,
+        logScore: 4.84,
+        rootCore: "오송 C&V센터(오늘 라운드테이블 현장) × K-바이오 스퀘어 임상·성분 분석 × KTX 분기 초광역 관문",
+        vipLink: "사과 껍질 폴리페놀·인삼 사포닌을 고부가 바이오 웰니스 산업으로 격상하는 R&D·수출 관문",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "오송 바이오 기능성 인증을 결합한 저당·고폴리페놀 K-애플 메디푸드 쇼케이스" },
+          { tag: "② 체험 (Lock-in)", text: "KTX 오송역 하차 30분 내 충주·예산·공주·부여 숙성고로 직결되는 ‘코어 에이징 게이트웨이’" },
+          { tag: "③ 경험 (Deep Work)", text: "바이오·AI 연구자와 로컬 생산자가 결합하는 위켄드 오픈랩 레지던시" },
+          { tag: "④ 여행 (Trail)", text: "청주국제공항 인바운드 외국인 관광객을 충청 서바이버 트레일로 유입하는 글로벌 관문" },
+          { tag: "⑤ 산업 (Industry)", text: "충청·소백권 낙과·부산물의 항산화 유효성분 표준화 및 글로벌 코스메슈티컬 원료 수출" }
+        ]
+      },
+      {
+        id: "sejong",
+        name: "세종특별자치시 (지능 에이전트 고속도로 정책 허브)",
+        shortName: "세종 정책허브",
+        category: "hub",
+        lat: 36.4869,
+        lng: 127.2822,
+        pop: 397615,
+        popRef: "2026 2분기 세종통계분기보",
+        sourceUrl: "https://en.wikipedia.org/wiki/Sejong_City",
+        sourceTitle: "세종특별자치시 행정중심복합도시 공간 좌표",
+        frostIdx: 80,
+        tacitMastery: 91,
+        narrativeIdx: 90,
+        logScore: 4.76,
+        rootCore: "지방시대위원회·행안부·국토연 제도 설계 본부 × 도시 공무원·지식노동자 주말 농촌 체류 수요원",
+        vipLink: "윤호중 행안부 장관 · 조상호 세종시장 · 육동일 지방행정연구원장 — 100일 실증 제도화 컨트롤타워",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "세종 로컬푸드 직매장 ‘싱싱장터’ 상위 버전으로 ‘스카 에디션·프로스트 바이트’ 스토리 경매장 운영" },
+          { tag: "② 체험 (Lock-in)", text: "세종 거주 가족·공직자 대상 인근 예산·공주·충주 오크통 숙성 구독 멤버십" },
+          { tag: "③ 경험 (Deep Work)", text: "정책 입안자·연구기관 연구진이 현장에서 집필·숙의하는 읍·면 벙커 스테이 순환 근무" },
+          { tag: "④ 여행 (Trail)", text: "세종 호수공원·국립수목원에서 공주·부여·예산으로 뻗어나가는 40분 생활인구 순환망" },
+          { tag: "⑤ 산업 (Industry)", text: "대형 SI 발주 관행을 혁파하는 ‘소형 공공 아키텍처 설계단’ 및 3단계 AI 햇살 배당 표준 조례 제정" }
+        ]
+      },
+      {
+        id: "seoul",
+        name: "서울특별시 (수도권 일극 선형 총량 기준축)",
+        shortName: "서울 (기준축)",
+        category: "metro",
+        lat: 37.5600,
+        lng: 126.9900,
+        pop: 9638799,
+        popRef: "KOSIS 서울특별시 총인구",
+        sourceUrl: "https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1YL20621",
+        sourceTitle: "KOSIS 국가통계포털 시도별 총인구 통계",
+        frostIdx: 45,
+        tacitMastery: 78,
+        narrativeIdx: 85,
+        logScore: 4.65,
+        rootCore: "기존 ‘선형(Linear) 총량 지도’에서 유일하게 거대한 기둥으로 솟아 지방의 고유 생존 잠재력을 착시적으로 지워버리던 기준축",
+        vipLink: "은퇴 교수·의사·엔지니어의 ‘시니어 지식 하방’ 출발지이자 딥 워크·코어 에이징 최대 소비 시장",
+        inheritance: [
+          { tag: "① 맛 (Taste)", text: "성수·한남 파인다이닝에 공급되는 충청·소백 ‘스카 에디션’ 및 ‘K-칼바도스’ 프리미엄 수요처" },
+          { tag: "② 체험 (Lock-in)", text: "수도권 시민이 예산·충주·단양 지하 숙성고에 자신만의 오크통을 두고 1~3년마다 내려가는 관계인구 전환" },
+          { tag: "③ 경험 (Deep Work)", text: "초연결 피로에 지친 수도권 테크·금융·법률 지식노동자의 농촌 ‘딥 워크 벙커 스테이’ 수요 공급원" },
+          { tag: "④ 여행 (Trail)", text: "주말 일회성 관광을 넘어 숙성고 개봉·인삼 치유·고택 명상을 결합한 장기 체류형 트레일 출발점" },
+          { tag: "⑤ 산업 (Industry)", text: "베이비부머 은퇴 전문인력이 지방 ‘AI 마을방’에 정착해 도메인 아키텍트로 활약하는 지식 순환 축" }
+        ]
+      }
+    ];
+
+    // Survivor Trail ordered coordinates (Sudeoksa/Yesan -> Gongju -> Buyeo -> Geumsan -> Osong -> Chungju -> Danyang)
+    var SURVIVOR_TRAIL_IDS = ["yesan", "gongju", "buyeo", "geumsan", "osong", "chungju", "danyang"];
+
+    // =========================================================================
+    // 2. APPLICATION STATE
+    // =========================================================================
+    var state = {
+      activeTab: 1,
+      scaleMode: "log10", // 'linear' | 'log10'
+      morphProgress: 1.0, // 0 = pure linear, 1 = pure log10
+      targetMorph: 1.0,
+      elevScale: 1.15,
+      pitchDeg: 32,
+      showHeatmap: true,
+      showTrailArc: true,
+      satelliteMode: false,
+      selectedNodeId: "yesan",
+      // Tab 2 ABM state
+      citizenDevRate: 45,
+      scarUpcycleRate: 40,
+      coreAgingRate: 35,
+      seniorHabang: true,
+      // Tab 3 Automata state
+      lang: "ko",
+      boxQty: 2,
+      agingYears: 2,
+      visitorName: "2026 지방시대 라운드테이블",
+      barrelMotto: "서리를 견딘 꿀, 2050 햇살로 익다"
+    };
+
+    var map = null;
+    var darkTileLayer = null;
+    var satTileLayer = null;
+    var animFrameId = null;
+    var hitBoxes = []; // For 3D column click detection
+    var incomeChart = null;
+    var dividendChart = null;
+
+    // Crisp verified QR SVG (ISO/IEC 18004 V3-M for https://core2050.soohwalee.com)
+    var VERIFIED_QR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 35 35" shape-rendering="crispEdges"><rect width="35" height="35" fill="#ffffff" rx="2"/><path fill="#0f172a" d="M3 3h7v1H3zM12 3h1v1h-1zM14 3h2v1h-2zM18 3h1v1h-1zM20 3h1v1h-1zM22 3h2v1h-2zM25 3h7v1h-7zM3 4h1v1H3zM9 4h1v1H9zM11 4h2v1h-2zM17 4h2v1h-2zM21 4h3v1h-3zM25 4h1v1h-1zM31 4h1v1h-1zM3 5h1v1H3zM5 5h3v1H5zM9 5h1v1H9zM12 5h1v1h-1zM14 5h1v1h-1zM16 5h1v1h-1zM18 5h3v1h-3zM23 5h1v1h-1zM25 5h1v1h-1zM27 5h3v1h-3zM31 5h1v1h-1zM3 6h1v1H3zM5 6h3v1H5zM9 6h1v1H9zM11 6h1v1h-1zM14 6h4v1h-4zM19 6h1v1h-1zM21 6h1v1h-1zM25 6h1v1h-1zM27 6h3v1h-3zM31 6h1v1h-1zM3 7h1v1H3zM5 7h3v1H5zM9 7h1v1H9zM12 7h3v1h-3zM16 7h1v1h-1zM18 7h1v1h-1zM20 7h1v1h-1zM22 7h2v1h-2zM25 7h1v1h-1zM27 7h3v1h-3zM31 7h1v1h-1zM3 8h1v1H3zM9 8h1v1H9zM14 8h2v1h-2zM19 8h2v1h-2zM25 8h1v1h-1zM31 8h1v1h-1zM3 9h7v1H3zM11 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM17 9h1v1h-1zM19 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM25 9h7v1h-7zM11 10h2v1h-2zM15 10h2v1h-2zM18 10h1v1h-1zM21 10h3v1h-3zM3 11h2v1H3zM6 11h1v1H6zM9 11h3v1H9zM15 11h3v1h-3zM21 11h1v1h-1zM23 11h1v1h-1zM26 11h2v1h-2zM30 11h2v1h-2zM3 12h1v1H3zM5 12h1v1H5zM7 12h2v1H7zM10 12h1v1h-1zM12 12h2v1h-2zM15 12h1v1h-1zM17 12h2v1h-2zM20 12h3v1h-3zM24 12h4v1h-4zM31 12h1v1h-1zM4 13h2v1H4zM9 13h1v1H9zM11 13h1v1h-1zM14 13h3v1h-3zM19 13h1v1h-1zM22 13h2v1h-2zM25 13h1v1h-1zM28 13h3v1h-3zM3 14h2v1H3zM6 14h2v1H6zM10 14h1v1h-1zM12 14h3v1h-3zM16 14h2v1h-2zM19 14h2v1h-2zM23 14h3v1h-3zM27 14h1v1h-1zM29 14h1v1h-1zM31 14h1v1h-1zM5 15h2v1H5zM8 15h3v1H8zM12 15h1v1h-1zM14 15h1v1h-1zM16 15h2v1h-2zM21 15h2v1h-2zM24 15h1v1h-1zM26 15h2v1h-2zM29 15h2v1h-2zM3 16h2v1H3zM6 16h2v1H6zM10 16h1v1h-1zM14 16h2v1h-2zM17 16h1v1h-1zM21 16h1v1h-1zM23 16h4v1h-4zM28 16h2v1h-2zM31 16h1v1h-1zM3 17h1v1H3zM5 17h1v1H5zM7 17h3v1H7zM12 17h2v1h-2zM15 17h4v1h-4zM20 17h1v1h-1zM22 17h1v1h-1zM24 17h2v1h-2zM28 17h3v1h-3zM4 18h1v1H4zM6 18h2v1H6zM10 18h1v1h-1zM13 18h1v1h-1zM18 18h2v1h-2zM21 18h2v1h-2zM24 18h2v1h-2zM27 18h1v1h-1zM30 18h1v1h-1zM3 19h1v1H3zM5 19h2v1H5zM9 19h1v1H9zM11 19h2v1h-2zM14 19h2v1h-2zM17 19h1v1h-1zM19 19h2v1h-2zM22 19h2v1h-2zM26 19h1v1h-1zM29 19h3v1h-3zM4 20h1v1H4zM6 20h1v1H6zM8 20h1v1H8zM10 20h1v1h-1zM12 20h1v1h-1zM14 20h3v1h-3zM18 20h2v1h-2zM21 20h1v1h-1zM25 20h3v1h-3zM29 20h1v1h-1zM31 20h1v1h-1zM3 21h1v1H3zM5 21h3v1H5zM9 21h1v1H9zM12 21h3v1h-3zM16 21h1v1h-1zM18 21h4v1h-4zM23 21h1v1h-1zM27 21h1v1h-1zM29 21h3v1h-3zM3 22h1v1H3zM5 22h1v1H5zM8 22h1v1H8zM10 22h2v1h-2zM15 22h2v1h-2zM21 22h1v1h-1zM23 22h5v1h-5zM29 22h2v1h-2zM4 23h4v1H4zM9 23h1v1H9zM12 23h2v1h-2zM16 23h1v1h-1zM18 23h1v1h-1zM20 23h1v1h-1zM23 23h1v1h-1zM27 23h1v1h-1zM29 23h3v1h-3zM11 24h2v1h-2zM14 24h1v1h-1zM17 24h3v1h-3zM21 24h3v1h-3zM25 24h1v1h-1zM27 24h1v1h-1zM31 24h1v1h-1zM3 25h7v1H3zM12 25h1v1h-1zM15 25h2v1h-2zM19 25h2v1h-2zM23 25h5v1h-5zM29 25h1v1h-1zM3 26h1v1H3zM9 26h1v1H9zM11 26h1v1h-1zM14 26h4v1h-4zM20 26h3v1h-3zM28 26h4v1h-4zM3 27h1v1H3zM5 27h3v1H5zM9 27h1v1H9zM12 27h2v1h-2zM15 27h1v1h-1zM17 27h2v1h-2zM20 27h1v1h-1zM22 27h3v1h-3zM26 27h3v1h-3zM30 27h2v1h-2zM3 28h1v1H3zM5 28h3v1H5zM9 28h1v1H9zM11 28h1v1h-1zM14 28h1v1h-1zM16 28h1v1h-1zM21 28h1v1h-1zM23 28h1v1h-1zM26 28h1v1h-1zM28 28h1v1h-1zM30 28h1v1h-1zM3 29h1v1H3zM5 29h3v1H5zM9 29h1v1H9zM13 29h2v1h-2zM18 29h3v1h-3zM22 29h2v1h-2zM25 29h4v1h-4zM30 29h2v1h-2zM3 30h1v1H3zM9 30h1v1H9zM12 30h2v1h-2zM15 30h2v1h-2zM18 30h1v1h-1zM21 30h1v1h-1zM24 30h1v1h-1zM28 30h1v1h-1zM31 30h1v1h-1zM3 31h7v1H3zM12 31h3v1h-3zM16 31h3v1h-3zM20 31h2v1h-2zM25 31h2v1h-2zM28 31h3v1h-3z"/></svg>';
+
+    // =========================================================================
+    // 3. TAB 1: LEAFLET + 3D PRISM & NEON KDE OVERLAY ENGINE
+    // =========================================================================
+    function initMap() {
+      map = L.map("hgisMap", {
+        center: [36.74, 127.42],
+        zoom: 8,
+        minZoom: 6,
+        maxZoom: 13,
+        zoomControl: true
+      });
+
+      darkTileLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Tiles &copy; Esri ArcGIS · CORE 2050 HGIS", maxZoom: 16 }
+      ).addTo(map);
+
+      satTileLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Imagery &copy; Esri · CORE 2050 HGIS", maxZoom: 16 }
+      );
+
+      map.on("move zoom viewreset resize", function () {
+        draw3DOverlay();
+      });
+
+      setupOverlayInteraction();
+      resizeOverlayCanvas();
+      draw3DOverlay();
+    }
+
+    function resizeOverlayCanvas() {
+      var wrap = document.getElementById("hgisMapWrap");
+      var canvas = document.getElementById("prismOverlay");
+      if (!wrap || !canvas) return;
+      var dpr = window.devicePixelRatio || 1;
+      var w = wrap.clientWidth || 700;
+      var h = wrap.clientHeight || 540;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+    }
+
+    function setupOverlayInteraction() {
+      var canvas = document.getElementById("prismOverlay");
+      if (!canvas) return;
+
+      var dragging = false;
+      var startX = 0;
+      var startY = 0;
+      var moved = false;
+
+      canvas.addEventListener("mousedown", function (e) {
+        dragging = true;
+        moved = false;
+        startX = e.clientX;
+        startY = e.clientY;
+      });
+
+      window.addEventListener("mousemove", function (e) {
+        if (dragging && map) {
+          var dx = e.clientX - startX;
+          var dy = e.clientY - startY;
+          if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            moved = true;
+            map.panBy([-dx, -dy], { animate: false });
+            startX = e.clientX;
+            startY = e.clientY;
+          }
+        }
+      });
+
+      window.addEventListener("mouseup", function () {
+        dragging = false;
+      });
+
+      canvas.addEventListener("wheel", function (e) {
+        if (!map) return;
+        e.preventDefault();
+        if (e.deltaY < 0) map.zoomIn();
+        else map.zoomOut();
+      }, { passive: false });
+
+      canvas.addEventListener("click", function (e) {
+        if (moved) return;
+        var rect = canvas.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        // Check hitboxes from front to back
+        for (var i = hitBoxes.length - 1; i >= 0; i--) {
+          var b = hitBoxes[i];
+          if (mx >= b.x1 && mx <= b.x2 && my >= b.y1 && my <= b.y2) {
+            selectNode(b.id, false);
+            return;
+          }
+        }
+      });
+    }
+
+    function setScaleMode(mode) {
+      state.scaleMode = mode;
+      state.targetMorph = mode === "log10" ? 1.0 : 0.0;
+
+      var btnLin = document.getElementById("btnLinearMode");
+      var btnLog = document.getElementById("btnLogMode");
+      var badge = document.getElementById("modeStatusBadge");
+      var desc = document.getElementById("modeDynamicDesc");
+      var hudTitle = document.getElementById("hudTitle");
+      var hudFormula = document.getElementById("hudFormula");
+      var quickLbl = document.getElementById("quickScaleLabel");
+
+      if (mode === "linear") {
+        btnLin.className = "px-3 py-2 rounded-lg text-xs font-bold transition bg-rose-500 text-white shadow-md";
+        btnLog.className = "px-3.5 py-2 rounded-lg text-xs font-bold transition text-slate-400 hover:text-slate-200";
+        badge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-400/40";
+        badge.textContent = "현재 시각계: 기존 선형(Linear) 인구·공장 총량 지도";
+        desc.innerHTML = "인구·공장 수 총량 비례에서는 <strong class='text-rose-300'>수도권(서울 963.9만 명)만 거대한 회색 기둥으로 솟고</strong>, 예산(0.81%)·부여(0.59%)·금산(0.51%)·단양(0.28%)은 바닥에 0처럼 짓눌려 ‘소멸위험지’로 비가시화됩니다.";
+        hudTitle.textContent = "Linear(주민등록인구 총량 비례)";
+        hudFormula.innerHTML = "서울 <span class='text-slate-100 font-semibold'>100.0%</span> 독점 융기 vs 단양 <span class='text-rose-400 font-semibold'>0.28%</span> · 금산 <span class='text-rose-400 font-semibold'>0.51%</span> 바닥 착시";
+        quickLbl.textContent = "선형 총량 지도 활성 (클릭 시 log10)";
+      } else {
+        btnLog.className = "px-3.5 py-2 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-md";
+        btnLin.className = "px-3 py-2 rounded-lg text-xs font-bold transition text-slate-400 hover:text-slate-200";
+        badge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40";
+        badge.textContent = "현재 시각계: 로그스케일(log10) 3D 생존 코어 HGIS";
+        desc.innerHTML = "디지털역사학 HGIS 방법론으로 <code class='text-amber-200'>log10(미기후·서리 밀도 × 30년 숙련 암묵지 × 역사·치유 서사)</code>를 플로팅하면 <strong class='text-amber-300'>예산·충주·단양·금산·부여·공주 골짜기마다 황금빛 고부가가치 산업 기둥</strong>이 융기합니다.";
+        hudTitle.textContent = "log10(미기후 × 숙련 암묵지 × 역사 서사)";
+        hudFormula.innerHTML = "예산 <span class='text-amber-300 font-semibold'>4.89</span> · 충주 <span class='text-amber-300 font-semibold'>4.86</span> · 금산 <span class='text-amber-300 font-semibold'>4.81</span> · 단양 <span class='text-amber-300 font-semibold'>4.78</span> 골짜기 황금 융기";
+        quickLbl.textContent = "로그(log10) 3D 코어 활성";
+      }
+
+      animateMorph();
+      renderNodePills();
+      renderSelectedNode();
+    }
+
+    function animateMorph() {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      function step() {
+        var diff = state.targetMorph - state.morphProgress;
+        if (Math.abs(diff) < 0.015) {
+          state.morphProgress = state.targetMorph;
+          draw3DOverlay();
+          animFrameId = null;
+          return;
+        }
+        state.morphProgress += diff * 0.16;
+        draw3DOverlay();
+        animFrameId = requestAnimationFrame(step);
+      }
+      animFrameId = requestAnimationFrame(step);
+    }
+
+    function draw3DOverlay() {
+      var canvas = document.getElementById("prismOverlay");
+      if (!canvas || !map) return;
+      var ctx = canvas.getContext("2d");
+      var dpr = window.devicePixelRatio || 1;
+      var w = canvas.width / dpr;
+      var h = canvas.height / dpr;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, w, h);
+
+      var maxPop = 9638799;
+      var t = state.morphProgress; // 0 = linear, 1 = log10
+      var pitchRad = (state.pitchDeg * Math.PI) / 180;
+      var isoX = Math.sin(pitchRad) * 0.34;
+      var isoY = Math.cos(pitchRad);
+
+      // Project nodes to screen coordinates
+      var projected = HGIS_NODES.map(function (n) {
+        var pt = map.latLngToContainerPoint([n.lat, n.lng]);
+        var linHeight = Math.max(3, (n.pop / maxPop) * 230);
+        // Emphasize high log10 core potential columns
+        var logNorm = (n.logScore - 4.2) / 0.8; // ~0.56 to 0.87
+        var logHeight = (42 + logNorm * 110) * state.elevScale;
+        var curH = linHeight * (1 - t) + logHeight * t;
+        return {
+          node: n,
+          x: pt.x,
+          y: pt.y,
+          h: curH,
+          linPct: ((n.pop / maxPop) * 100).toFixed(2)
+        };
+      });
+
+      // 1) Draw Neon / Amber KDE Heatmap Glow
+      if (state.showHeatmap) {
+        projected.forEach(function (p) {
+          var isCore = p.node.category === "core";
+          var radius = isCore ? (42 + 52 * t) : (56 - 14 * t);
+          var alpha = isCore ? (0.06 + 0.28 * t) : (0.26 - 0.08 * t);
+          var grad = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, radius);
+          if (p.node.category === "core") {
+            grad.addColorStop(0, "rgba(251, 191, 36, " + alpha + ")");
+            grad.addColorStop(0.55, "rgba(217, 119, 6, " + (alpha * 0.45) + ")");
+            grad.addColorStop(1, "rgba(217, 119, 6, 0)");
+          } else if (p.node.category === "hub") {
+            grad.addColorStop(0, "rgba(56, 189, 248, " + (alpha * 0.85) + ")");
+            grad.addColorStop(1, "rgba(56, 189, 248, 0)");
+          } else {
+            grad.addColorStop(0, "rgba(148, 163, 184, " + alpha + ")");
+            grad.addColorStop(1, "rgba(148, 163, 184, 0)");
+          }
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 2) Draw Chungcheong-Sobaek Survivor Trail Glowing Arcs (stronger in log10 mode)
+      if (state.showTrailArc && t > 0.08) {
+        var byId = {};
+        projected.forEach(function (p) { byId[p.node.id] = p; });
+        ctx.save();
+        ctx.lineWidth = 2.2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = "rgba(251, 191, 36, " + (0.78 * t) + ")";
+        ctx.shadowColor = "rgba(245, 158, 11, 0.7)";
+        ctx.shadowBlur = 10;
+
+        for (var i = 0; i < SURVIVOR_TRAIL_IDS.length - 1; i++) {
+          var a = byId[SURVIVOR_TRAIL_IDS[i]];
+          var b = byId[SURVIVOR_TRAIL_IDS[i + 1]];
+          if (!a || !b) continue;
+          var mx = (a.x + b.x) / 2;
+          var my = (a.y + b.y) / 2 - 26 * t;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.quadraticCurveTo(mx, my, b.x, b.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 3) Sort back-to-front by Y so 3D columns overlap naturally
+      projected.sort(function (a, b) { return a.y - b.y; });
+      hitBoxes = [];
+
+      projected.forEach(function (p) {
+        var n = p.node;
+        var isSel = n.id === state.selectedNodeId;
+        var colW = isSel ? 17 : 13;
+        var dx = p.h * isoX * 0.28;
+        var dy = p.h * isoY;
+        var topX = p.x + dx;
+        var topY = p.y - dy;
+
+        // Color palette by category & mode
+        var leftColor, rightColor, topColor, strokeColor;
+        if (n.category === "core") {
+          if (t < 0.35) {
+            leftColor = "rgba(244, 63, 94, 0.75)";
+            rightColor = "rgba(159, 18, 57, 0.85)";
+            topColor = "#fda4af";
+            strokeColor = "#fb7185";
+          } else {
+            leftColor = "rgba(245, 158, 11, 0.92)";
+            rightColor = "rgba(180, 83, 9, 0.95)";
+            topColor = "#fde68a";
+            strokeColor = "#fbbf24";
+          }
+        } else if (n.category === "hub") {
+          leftColor = "rgba(56, 189, 248, 0.88)";
+          rightColor = "rgba(3, 105, 161, 0.92)";
+          topColor = "#bae6fd";
+          strokeColor = "#38bdf8";
+        } else {
+          leftColor = "rgba(148, 163, 184, 0.86)";
+          rightColor = "rgba(71, 85, 105, 0.92)";
+          topColor = "#e2e8f0";
+          strokeColor = "#cbd5e1";
+        }
+
+        // Base ellipse ring
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, colW * 1.35, colW * 0.65, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = isSel ? "#ffffff" : strokeColor;
+        ctx.lineWidth = isSel ? 2.2 : 1.1;
+        ctx.stroke();
+
+        // Left 3D face
+        ctx.beginPath();
+        ctx.moveTo(p.x - colW, p.y);
+        ctx.lineTo(p.x, p.y + colW * 0.52);
+        ctx.lineTo(topX, topY + colW * 0.52);
+        ctx.lineTo(topX - colW, topY);
+        ctx.closePath();
+        ctx.fillStyle = leftColor;
+        ctx.fill();
+
+        // Right 3D face
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y + colW * 0.52);
+        ctx.lineTo(p.x + colW, p.y);
+        ctx.lineTo(topX + colW, topY);
+        ctx.lineTo(topX, topY + colW * 0.52);
+        ctx.closePath();
+        ctx.fillStyle = rightColor;
+        ctx.fill();
+
+        // Top 3D diamond cap
+        ctx.beginPath();
+        ctx.moveTo(topX, topY - colW * 0.52);
+        ctx.lineTo(topX + colW, topY);
+        ctx.lineTo(topX, topY + colW * 0.52);
+        ctx.lineTo(topX - colW, topY);
+        ctx.closePath();
+        ctx.fillStyle = topColor;
+        ctx.fill();
+        ctx.strokeStyle = isSel ? "#ffffff" : "rgba(255,255,255,0.45)";
+        ctx.lineWidth = isSel ? 2 : 0.8;
+        ctx.stroke();
+
+        // Label tag above prism
+        var valStr = state.scaleMode === "linear"
+          ? (n.id === "seoul" ? "963.9만 (100%)" : p.linPct + "%")
+          : ("log " + n.logScore.toFixed(2));
+        var labelText = n.shortName + " · " + valStr;
+
+        ctx.font = (isSel ? "700 " : "600 ") + "11px 'Pretendard', sans-serif";
+        var tw = ctx.measureText(labelText).width + 12;
+        var lx = topX - tw / 2;
+        var ly = Math.max(8, topY - colW * 0.6 - 22);
+
+        ctx.fillStyle = isSel ? "rgba(245, 158, 11, 0.96)" : "rgba(7, 11, 20, 0.86)";
+        ctx.strokeStyle = isSel ? "#ffffff" : strokeColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(lx, ly, tw, 18, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isSel ? "#090d16" : "#f8fafc";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labelText, topX, ly + 9);
+
+        hitBoxes.push({
+          id: n.id,
+          x1: Math.min(p.x - colW - 6, lx),
+          x2: Math.max(p.x + colW + 6, lx + tw),
+          y1: ly,
+          y2: p.y + colW
+        });
+      });
+
+      ctx.restore();
+    }
+
+    function renderNodePills() {
+      var container = document.getElementById("nodePillContainer");
+      if (!container) return;
+      container.innerHTML = HGIS_NODES.map(function (n) {
+        var active = n.id === state.selectedNodeId;
+        var cls = active
+          ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 shadow"
+          : "px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700";
+        return '<button type="button" data-node-id="' + n.id + '" class="node-pill-btn ' + cls + ' transition">' + n.shortName + '</button>';
+      }).join("");
+
+      var btns = container.querySelectorAll(".node-pill-btn");
+      btns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          selectNode(btn.getAttribute("data-node-id"), true);
+        });
+      });
+    }
+
+    function selectNode(nodeId, panMap) {
+      state.selectedNodeId = nodeId;
+      renderNodePills();
+      renderSelectedNode();
+      draw3DOverlay();
+      if (panMap && map) {
+        var found = HGIS_NODES.find(function (x) { return x.id === nodeId; });
+        if (found) {
+          map.panTo([found.lat, found.lng], { animate: true, duration: 0.45 });
+        }
+      }
+    }
+
+    function renderSelectedNode() {
+      var card = document.getElementById("nodeDetailCard");
+      if (!card) return;
+      var n = HGIS_NODES.find(function (x) { return x.id === state.selectedNodeId; }) || HGIS_NODES[0];
+      var linPct = ((n.pop / 9638799) * 100).toFixed(2);
+
+      var itemsHtml = n.inheritance.map(function (item) {
+        return (
+          '<div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/90 space-y-0.5">' +
+            '<div class="text-[11px] font-bold text-amber-300">' + item.tag + '</div>' +
+            '<div class="text-xs text-slate-200 leading-snug">' + item.text + '</div>' +
+          '</div>'
+        );
+      }).join("");
+
+      card.innerHTML =
+        '<div class="space-y-2.5">' +
+          '<div class="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">' +
+            '<div>' +
+              '<span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">' +
+                '마스터 클래스(Root Core) → 5대 상속' +
+              '</span>' +
+              '<h3 class="text-base font-extrabold text-white mt-1">' + n.name + '</h3>' +
+              '<div class="text-[11px] text-slate-400 font-mono">좌표 ' + n.lat.toFixed(4) + '°N, ' + n.lng.toFixed(4) + '°E · 기준인구 ' + n.pop.toLocaleString() + '명</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="grid grid-cols-2 gap-2 text-xs">' +
+            '<div class="p-2 rounded-lg bg-slate-950/90 border border-slate-800">' +
+              '<div class="text-[10px] text-slate-400">선형 총량비 (서울=100%)</div>' +
+              '<div class="text-sm font-extrabold text-rose-400">' + linPct + '%</div>' +
+            '</div>' +
+            '<div class="p-2 rounded-lg bg-slate-950/90 border border-amber-500/40">' +
+              '<div class="text-[10px] text-amber-200">로그(log10) 생존 코어 지수</div>' +
+              '<div class="text-sm font-extrabold text-amber-300">' + n.logScore.toFixed(2) + ' <span class="text-[10px] font-normal text-emerald-300">(서리 ' + n.frostIdx + '·암묵지 ' + n.tacitMastery + ')</span></div>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">' +
+            '<div class="font-bold text-amber-200">생존 코어(Root Class) 정의</div>' +
+            '<div class="text-slate-200 leading-snug">' + n.rootCore + '</div>' +
+            '<div class="text-[11px] text-emerald-300 pt-0.5">▶ 라운드테이블 연계: ' + n.vipLink + '</div>' +
+          '</div>' +
+
+          '<div class="space-y-1.5 max-h-72 overflow-y-auto custom-scroll pr-1">' +
+            itemsHtml +
+          '</div>' +
+        '</div>' +
+        '<div class="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">' +
+          '<a href="' + n.sourceUrl + '" target="_blank" rel="noopener" class="text-amber-300 hover:underline font-medium">↗ 검증 출처: ' + n.sourceTitle + '</a>' +
+          '<span class="text-slate-500 font-mono">' + n.popRef + '</span>' +
+        '</div>';
+    }
+
+    // =========================================================================
+    // 4. TAB 2: MONTE CARLO ABM ENGINE (2026 -> 2050, N=24 ENSEMBLE)
+    // =========================================================================
+    function runMonteCarloABM() {
+      var years = [];
+      for (var y = 2026; y <= 2050; y++) years.push(y);
+
+      var dev = state.citizenDevRate / 100;
+      var scar = state.scarUpcycleRate / 100;
+      var lock = state.coreAgingRate / 100;
+      var habangBoost = state.seniorHabang ? 1.18 : 0.92;
+
+      var baselineSeries = [];
+      var meanSunshine = [];
+      var upperBand = [];
+      var lowerBand = [];
+      var divAccess = [];
+      var divParticipate = [];
+      var divOutcome = [];
+      var livingPopRatio = [];
+
+      var runs = 24;
+
+      years.forEach(function (yr, idx) {
+        var tNorm = idx / 24; // 0.0 to 1.0
+        // Logistic S-curve adoption after 100-day pilot
+        var sCurve = 1 / (1 + Math.exp(-7.5 * (tNorm - 0.26)));
+
+        // Raw commodity village (aging + climate volatility + off-the-shelf SaaS fee drain)
+        var baseIncome = 3150 * Math.pow(0.992, idx) - 45 * tNorm;
+        baselineSeries.push(Math.round(baseIncome));
+
+        // Deterministic core components (unit: 10,000 KRW / yr per household)
+        var swSavingsGain = 420 * dev * sCurve;
+        var scarBrandGain = 2150 * scar * sCurve * habangBoost;
+        var lockinGain = 1980 * lock * sCurve * habangBoost;
+
+        // 3-Stage Sunshine Dividend
+        var d1 = Math.round(140 + 210 * dev * sCurve); // Access dividend (universal compute & agents)
+        var d2 = Math.round((320 * dev + 240 * scar) * sCurve * habangBoost); // Tacit knowledge asset dividend
+        var d3 = Math.round((480 * scar + 520 * lock) * Math.pow(sCurve, 1.15) * habangBoost); // Outcome sharing dividend
+        var totalDiv = d1 + d2 + d3;
+
+        // Seeded pseudo-random Monte Carlo ensemble (N=24) for frost/market variance
+        var samples = [];
+        for (var r = 0; r < runs; r++) {
+          var seed = Math.sin((idx + 1) * 97.13 + (r + 1) * 31.7 + dev * 50 + scar * 40) * 10000;
+          var u1 = Math.max(0.001, seed - Math.floor(seed));
+          var seed2 = Math.cos((idx + 2) * 53.9 + (r + 3) * 19.3 + lock * 60) * 10000;
+          var u2 = Math.max(0.001, seed2 - Math.floor(seed2));
+          var z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+          var noise = z * (165 + 290 * tNorm) * (1.05 - 0.35 * lock); // Higher lock-in stabilizes shock!
+          var val = 3200 + swSavingsGain + scarBrandGain + lockinGain + totalDiv + noise;
+          samples.push(val);
+        }
+
+        var sum = samples.reduce(function (a, b) { return a + b; }, 0);
+        var mean = sum / runs;
+        var variance = samples.reduce(function (a, b) { return a + Math.pow(b - mean, 2); }, 0) / runs;
+        var sd = Math.sqrt(variance);
+
+        meanSunshine.push(Math.round(mean));
+        upperBand.push(Math.round(mean + sd));
+        lowerBand.push(Math.round(Math.max(baseIncome, mean - sd)));
+
+        divAccess.push(d1);
+        divParticipate.push(d2);
+        divOutcome.push(d3);
+
+        // Living population multiple relative to registered population
+        var lPop = 1.08 + (4.85 * lock + 1.95 * scar + 0.85 * dev) * sCurve * habangBoost;
+        livingPopRatio.push(Number(lPop.toFixed(2)));
+      });
+
+      // Update UI Readouts
+      var finalIncome = meanSunshine[24];
+      var finalBase = baselineSeries[24];
+      var mult = (finalIncome / Math.max(1, finalBase)).toFixed(2);
+      var finalDiv = divAccess[24] + divParticipate[24] + divOutcome[24];
+      var finalLPop = livingPopRatio[24];
+      var agentCnt = Math.round(state.citizenDevRate * 3.0);
+
+      document.getElementById("valCitizenDev").textContent = state.citizenDevRate + "%";
+      document.getElementById("valScarUpcycle").textContent = state.scarUpcycleRate + "%";
+      document.getElementById("valCoreAging").textContent = state.coreAgingRate + "%";
+      document.getElementById("agentCountReadout").textContent = agentCnt + "개";
+
+      document.getElementById("kpiHouseholdIncome").textContent = finalIncome.toLocaleString() + "만 원";
+      document.getElementById("kpiIncomeMultiple").textContent = "원물출하 마을(" + finalBase.toLocaleString() + "만) 대비 " + mult + "배";
+      document.getElementById("kpiLivingPop").textContent = finalLPop.toFixed(2) + "배";
+      document.getElementById("kpiLivingPopSub").textContent = "예산 기준 연 " + Math.round(77888 * finalLPop).toLocaleString() + "명 체류·재방문";
+      document.getElementById("kpiDividendTotal").textContent = finalDiv.toLocaleString() + "만 원";
+
+      renderAbmCharts(years, baselineSeries, meanSunshine, upperBand, lowerBand, divAccess, divParticipate, divOutcome, livingPopRatio);
+    }
+
+    function renderAbmCharts(years, baseS, meanS, upS, lowS, d1, d2, d3, lPop) {
+      var ctx1 = document.getElementById("abmIncomeChart");
+      var ctx2 = document.getElementById("abmDividendChart");
+      if (!ctx1 || !ctx2 || typeof Chart === "undefined") return;
+
+      if (incomeChart) incomeChart.destroy();
+      incomeChart = new Chart(ctx1, {
+        type: "line",
+        data: {
+          labels: years,
+          datasets: [
+            {
+              label: "AI 햇살마을 평균 순소득 (만 원)",
+              data: meanS,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245, 158, 11, 0.15)",
+              borderWidth: 3,
+              pointRadius: 2,
+              tension: 0.32
+            },
+            {
+              label: "몬테카를로 상위 밴드 (+1 SD)",
+              data: upS,
+              borderColor: "rgba(251, 191, 36, 0.35)",
+              backgroundColor: "rgba(245, 158, 11, 0.14)",
+              borderDash: [3, 3],
+              borderWidth: 1,
+              pointRadius: 0,
+              fill: "+1",
+              tension: 0.32
+            },
+            {
+              label: "몬테카를로 하위 밴드 (-1 SD)",
+              data: lowS,
+              borderColor: "rgba(251, 191, 36, 0.35)",
+              backgroundColor: "transparent",
+              borderDash: [3, 3],
+              borderWidth: 1,
+              pointRadius: 0,
+              tension: 0.32
+            },
+            {
+              label: "원물출하 · 기성복 SW 종속 마을",
+              data: baseS,
+              borderColor: "#94a3b8",
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { labels: { color: "#cbd5e1", font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: "#94a3b8", maxTicksLimit: 9 }, grid: { color: "rgba(148,163,184,0.08)" } },
+            y: { ticks: { color: "#cbd5e1" }, grid: { color: "rgba(148,163,184,0.1)" }, title: { display: true, text: "만 원 / 년", color: "#94a3b8" } }
+          }
+        }
+      });
+
+      // Sample milestone years for stacked bar clarity
+      var stepIdx = [0, 2, 4, 8, 12, 16, 20, 24];
+      var subYears = stepIdx.map(function (i) { return years[i]; });
+      var subD1 = stepIdx.map(function (i) { return d1[i]; });
+      var subD2 = stepIdx.map(function (i) { return d2[i]; });
+      var subD3 = stepIdx.map(function (i) { return d3[i]; });
+      var subLP = stepIdx.map(function (i) { return lPop[i]; });
+
+      if (dividendChart) dividendChart.destroy();
+      dividendChart = new Chart(ctx2, {
+        type: "bar",
+        data: {
+          labels: subYears,
+          datasets: [
+            {
+              label: "① 접근 배당 (보편 에이전트·컴퓨팅)",
+              data: subD1,
+              backgroundColor: "rgba(56, 189, 248, 0.78)",
+              stack: "div"
+            },
+            {
+              label: "② 참여 배당 (30년 암묵지·미기후 자산화)",
+              data: subD2,
+              backgroundColor: "rgba(245, 158, 11, 0.84)",
+              stack: "div"
+            },
+            {
+              label: "③ 성과 배당 (공동 스토리·증류주 환원)",
+              data: subD3,
+              backgroundColor: "rgba(16, 185, 129, 0.84)",
+              stack: "div"
+            },
+            {
+              type: "line",
+              label: "코어락인 생활인구 배수 (우측 축)",
+              data: subLP,
+              yAxisID: "y1",
+              borderColor: "#f43f5e",
+              backgroundColor: "#f43f5e",
+              borderWidth: 2.5,
+              pointRadius: 3.5,
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: "#cbd5e1", font: { size: 11 } } }
+          },
+          scales: {
+            x: { stacked: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+            y: { stacked: true, ticks: { color: "#cbd5e1" }, grid: { color: "rgba(148,163,184,0.1)" }, title: { display: true, text: "햇살 배당 (만 원)", color: "#94a3b8" } },
+            y1: { position: "right", ticks: { color: "#fda4af" }, grid: { drawOnChartArea: false }, title: { display: true, text: "생활인구 배수(x)", color: "#fda4af" } }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // 5. TAB 3: CITIZEN DEVELOPER VIBE-CODING & OAK BARREL PYROGRAPHY ENGINE
+    // =========================================================================
+    var DIALECT_PRESETS = [
+      {
+        prompt: "올가을 우박 맞은 부사 400상자, 상처 자국이 서리 이겨내고 꿀(소르비톨) 박힌 훈장이라고 4개국어 스카 에디션 직수출 페이지랑 오크통 불도장 숙성 예약 앱 맹글어줘유!",
+        motto: "서리를 견딘 꿀, 2050 햇살로 익다",
+        slot: "YESAN-CAVE #B-042"
+      },
+      {
+        prompt: "첫서리 맞은 충주 프로스트 바이트 사과랑 겨울 전정목 훈연칩 묶어서 서울 손님들 플람베 다이닝·딥워크 벙커스테이 주말 예약 앱 하나 당장 띄워봐유!",
+        motto: "충주호 첫서리, 오크통 불꽃으로 깨어나다",
+        slot: "CHUNGJU-TUNNEL #C-108"
+      },
+      {
+        prompt: "6년근 금산 인삼이랑 예산 추사고택·수덕사, 오크통 브랜디 숙성 체험을 1박2일 외국인 서바이버 트레일 패스로 한 번에 엮어줘유!",
+        motto: "여섯 번의 겨울을 이긴 사포닌과 밀병의 동맹",
+        slot: "SURVIVOR-TRAIL #S-019"
+      }
+    ];
+
+    var SCAR_I18N = {
+      ko: {
+        badge: "LIMITED HARVEST · 충청·소백 생존 코어 직수출",
+        headline: "스카 에디션 (Scarred Honor): 우박과 첫서리를 견딘 황금 밀병(蜜病) 사과",
+        body: "영하의 칼바람과 우박 상처를 스스로 치유하며 전분을 천연 꿀(소르비톨)과 항산화 폴리페놀로 고밀도 압축했습니다. 공판장 헐값 낙과가 아닌, 자연의 훈장을 새긴 하이엔드 플람베 다이닝 에디션입니다.",
+        unitPrice: 68000,
+        currFmt: function (v) { return v.toLocaleString() + "원"; },
+        btn: "글로벌 직수출 프리오더 · 산지 직결제 시연"
+      },
+      en: {
+        badge: "SCARRED HONOR · FROST-BITE KOREAN CORE APPLE",
+        headline: "Scarred Honor Reserve: Hail-Kissed Honeycore Apples from Yesan & Sobaek",
+        body: "Every healed hail scar is nature's medal of survival. Facing sub-zero autumn frost, the tree compresses starch into golden sorbitol nectar and +42% antioxidant polyphenols. Crafted for flambé dining & Calvados pairing.",
+        unitPrice: 52,
+        currFmt: function (v) { return "USD $" + v.toLocaleString(); },
+        btn: "Reserve Direct Farm-to-Table Export Allocation"
+      },
+      ja: {
+        badge: "SCARRED HONOR · 韓国忠清・小白山脈 霜降り蜜入り 사과",
+        headline: "スカー・エディション（名誉の傷跡）：雹と初霜を生き抜いた黄金蜜リンゴ",
+        body: "厳しい初霜と雹の傷を自ら癒やす過程で、デンプンを天然ソルビトール（蜜）と高濃度ポリフェノールへと凝縮。市場の規格外品ではなく、自然の勲章を刻んだプレミアム・フランベ用逸品です。",
+        unitPrice: 7800,
+        currFmt: function (v) { return "¥" + v.toLocaleString() + " (税込)"; },
+        btn: "産地直送グローバル予約・スマート決済デモ"
+      },
+      fr: {
+        badge: "ÉDITION CICATRICE D'HONNEUR · TERROIR DE CORÉE",
+        headline: "Scarred Honor : Pommes Cœur-de-Miel Forgées par le Gel et la Grêle",
+        body: "Chaque cicatrice de grêle témoigne d'une survie extrême : face au gel matinal, le fruit concentre son sorbitol doré et ses polyphénols (+42%), idéal pour le flambage gastronomique et notre K-Calvados élevé en fût de chêne.",
+        unitPrice: 48,
+        currFmt: function (v) { return v.toLocaleString() + " €"; },
+        btn: "Réserver l'Allocation Directe Producteur"
+      }
+    };
+
+    function renderScarApp() {
+      var d = SCAR_I18N[state.lang] || SCAR_I18N.ko;
+      document.getElementById("scarBadgeText").textContent = d.badge;
+      document.getElementById("scarHeadline").textContent = d.headline;
+      document.getElementById("scarStoryBody").textContent = d.body;
+      document.getElementById("boxQtyReadout").textContent = String(state.boxQty);
+      document.getElementById("wholesaleCompare").textContent = (state.boxQty * 12000).toLocaleString() + "원";
+      document.getElementById("scarTotalPrice").textContent = "직수출 결제액: " + d.currFmt(state.boxQty * d.unitPrice);
+      document.getElementById("btnReserveScar").textContent = d.btn;
+
+      document.querySelectorAll(".lang-switch-btn").forEach(function (b) {
+        var active = b.getAttribute("data-lang") === state.lang;
+        b.className = active
+          ? "lang-switch-btn px-2 py-1 rounded bg-amber-500 text-slate-950 font-bold"
+          : "lang-switch-btn px-2 py-1 rounded text-slate-300 hover:text-white";
+      });
+    }
+
+    function drawBarrelCanvas() {
+      var c = document.getElementById("barrelCanvas");
+      if (!c) return;
+      var ctx = c.getContext("2d");
+      var w = c.width;
+      var h = c.height;
+      var cx = w / 2;
+      var cy = h / 2;
+      ctx.clearRect(0, 0, w, h);
+
+      // Outer iron hoop
+      ctx.beginPath();
+      ctx.arc(cx, cy, 100, 0, Math.PI * 2);
+      ctx.fillStyle = "#27272a";
+      ctx.fill();
+
+      // Charred French Oak wood head gradient
+      var woodGrad = ctx.createRadialGradient(cx - 18, cy - 18, 12, cx, cy, 92);
+      woodGrad.addColorStop(0, "#b45309");
+      woodGrad.addColorStop(0.65, "#78350f");
+      woodGrad.addColorStop(1, "#451a03");
+      ctx.beginPath();
+      ctx.arc(cx, cy, 91, 0, Math.PI * 2);
+      ctx.fillStyle = woodGrad;
+      ctx.fill();
+
+      // Oak plank horizontal stave lines
+      ctx.strokeStyle = "rgba(28, 10, 0, 0.55)";
+      ctx.lineWidth = 1.4;
+      [-52, -26, 0, 26, 52].forEach(function (offsetY) {
+        var halfChord = Math.sqrt(Math.max(0, 91 * 91 - offsetY * offsetY));
+        ctx.beginPath();
+        ctx.moveTo(cx - halfChord, cy + offsetY);
+        ctx.lineTo(cx + halfChord, cy + offsetY);
+        ctx.stroke();
+      });
+
+      // Rivets on iron hoop
+      for (var a = 0; a < 12; a++) {
+        var ang = (a * Math.PI) / 6;
+        var rx = cx + Math.cos(ang) * 95.5;
+        var ry = cy + Math.sin(ang) * 95.5;
+        ctx.beginPath();
+        ctx.arc(rx, ry, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = "#a1a1aa";
+        ctx.fill();
+      }
+
+      // Inner burned emblem ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, 78, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(254, 243, 199, 0.42)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Pyrography (wood-burned) text with subtle ember glow
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.shadowColor = "rgba(251, 191, 36, 0.45)";
+      ctx.shadowBlur = 4;
+
+      ctx.fillStyle = "#fde68a";
+      ctx.font = "700 9px monospace";
+      ctx.fillText("CORE AGING · K-CALVADOS", cx, cy - 48);
+
+      ctx.fillStyle = "#290d02";
+      ctx.font = "800 12px 'Pretendard', sans-serif";
+      var nameTxt = (state.visitorName || "방문객 각인").slice(0, 16);
+      ctx.fillText(nameTxt, cx, cy - 16);
+      ctx.strokeStyle = "rgba(253, 230, 138, 0.35)";
+      ctx.lineWidth = 0.5;
+      ctx.strokeText(nameTxt, cx, cy - 16);
+
+      ctx.fillStyle = "#fef3c7";
+      ctx.font = "600 9.5px 'Pretendard', sans-serif";
+      var mottoTxt = (state.barrelMotto || "").slice(0, 19);
+      ctx.fillText(mottoTxt, cx, cy + 6);
+
+      var openYr = 2026 + state.agingYears;
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "700 10px monospace";
+      ctx.fillText("2026.12.10 → " + openYr + ".12.10", cx, cy + 32);
+
+      ctx.fillStyle = "rgba(254, 243, 199, 0.8)";
+      ctx.font = "700 9px monospace";
+      ctx.fillText(state.agingYears + "YR CASK · 40% ABV", cx, cy + 50);
+      ctx.restore();
+
+      // Update lock-in readout
+      var openYear = 2026 + state.agingYears;
+      var visits = state.agingYears + 1;
+      var spend = visits * 31;
+      document.getElementById("unsealDateReadout").textContent =
+        openYear + ". 12. 10. (" + (state.agingYears * 12) + "개월 숙성 · 40% ABV)";
+      document.getElementById("lockinVisitEffect").textContent =
+        "최소 " + visits + "회 재방문 락인 · 지역 누적 소비 약 " + spend + "만 원";
+    }
+
+    // =========================================================================
+    // 6. TAB SWITCHING, MODALS & EVENT WIRING
+    // =========================================================================
+    function switchTab(tabNum) {
+      state.activeTab = tabNum;
+      [1, 2, 3].forEach(function (n) {
+        var panel = document.getElementById("panel" + n);
+        var btn = document.getElementById("tabBtn" + n);
+        if (panel) {
+          if (n === tabNum) panel.classList.remove("hidden");
+          else panel.classList.add("hidden");
+        }
+        if (btn) {
+          if (n === tabNum) btn.classList.add("tab-active");
+          else btn.classList.remove("tab-active");
+        }
+      });
+
+      if (tabNum === 1 && map) {
+        setTimeout(function () {
+          map.invalidateSize();
+          resizeOverlayCanvas();
+          draw3DOverlay();
+        }, 60);
+      } else if (tabNum === 2) {
+        setTimeout(runMonteCarloABM, 40);
+      } else if (tabNum === 3) {
+        renderScarApp();
+        drawBarrelCanvas();
+      }
+    }
+
+    function wireAllEvents() {
+      // Main tabs
+      document.querySelectorAll(".main-tab-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          switchTab(parseInt(btn.getAttribute("data-tab"), 10));
+        });
+      });
+
+      // Scale mode buttons
+      document.getElementById("btnLinearMode").addEventListener("click", function () {
+        setScaleMode("linear");
+      });
+      document.getElementById("btnLogMode").addEventListener("click", function () {
+        setScaleMode("log10");
+      });
+      document.getElementById("quickScaleBtn").addEventListener("click", function () {
+        if (state.activeTab !== 1) switchTab(1);
+        setScaleMode(state.scaleMode === "log10" ? "linear" : "log10");
+      });
+
+      // 3D Map Controls
+      document.getElementById("elevSlider").addEventListener("input", function (e) {
+        state.elevScale = parseFloat(e.target.value);
+        document.getElementById("elevValLabel").textContent = state.elevScale.toFixed(2) + "x";
+        draw3DOverlay();
+      });
+      document.getElementById("pitchSlider").addEventListener("input", function (e) {
+        state.pitchDeg = parseInt(e.target.value, 10);
+        document.getElementById("pitchValLabel").textContent = state.pitchDeg + "°";
+        draw3DOverlay();
+      });
+      document.getElementById("chkHeatmap").addEventListener("change", function (e) {
+        state.showHeatmap = e.target.checked;
+        draw3DOverlay();
+      });
+      document.getElementById("chkTrailArc").addEventListener("change", function (e) {
+        state.showTrailArc = e.target.checked;
+        draw3DOverlay();
+      });
+      document.getElementById("btnToggleTile").addEventListener("click", function (e) {
+        if (!map) return;
+        state.satelliteMode = !state.satelliteMode;
+        if (state.satelliteMode) {
+          map.removeLayer(darkTileLayer);
+          satTileLayer.addTo(map);
+          e.target.textContent = "다크 HGIS 베이스맵 전환";
+        } else {
+          map.removeLayer(satTileLayer);
+          darkTileLayer.addTo(map);
+          e.target.textContent = "위성 영상 베이스맵 전환";
+        }
+      });
+      document.getElementById("btnResetView").addEventListener("click", function () {
+        if (!map) return;
+        map.setView([36.74, 127.42], 8, { animate: true });
+      });
+
+      window.addEventListener("resize", function () {
+        resizeOverlayCanvas();
+        draw3DOverlay();
+      });
+
+      // Tab 2 ABM Sliders & Presets
+      ["slCitizenDev", "slScarUpcycle", "slCoreAging"].forEach(function (id) {
+        document.getElementById(id).addEventListener("input", function () {
+          state.citizenDevRate = parseInt(document.getElementById("slCitizenDev").value, 10);
+          state.scarUpcycleRate = parseInt(document.getElementById("slScarUpcycle").value, 10);
+          state.coreAgingRate = parseInt(document.getElementById("slCoreAging").value, 10);
+          runMonteCarloABM();
+        });
+      });
+      document.getElementById("chkSeniorHabang").addEventListener("change", function (e) {
+        state.seniorHabang = e.target.checked;
+        runMonteCarloABM();
+      });
+      document.querySelectorAll(".abm-preset-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var p = btn.getAttribute("data-preset");
+          if (p === "baseline") {
+            state.citizenDevRate = 8; state.scarUpcycleRate = 7; state.coreAgingRate = 6; state.seniorHabang = false;
+          } else if (p === "pilot100") {
+            state.citizenDevRate = 35; state.scarUpcycleRate = 32; state.coreAgingRate = 28; state.seniorHabang = true;
+          } else {
+            state.citizenDevRate = 68; state.scarUpcycleRate = 62; state.coreAgingRate = 55; state.seniorHabang = true;
+          }
+          document.getElementById("slCitizenDev").value = state.citizenDevRate;
+          document.getElementById("slScarUpcycle").value = state.scarUpcycleRate;
+          document.getElementById("slCoreAging").value = state.coreAgingRate;
+          document.getElementById("chkSeniorHabang").checked = state.seniorHabang;
+          runMonteCarloABM();
+        });
+      });
+
+      // Tab 3 Automata Studio Controls
+      document.querySelectorAll(".dialect-chip").forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          var idx = parseInt(chip.getAttribute("data-utterance"), 10);
+          var preset = DIALECT_PRESETS[idx] || DIALECT_PRESETS[0];
+          document.getElementById("farmerPromptInput").value = preset.prompt;
+          state.barrelMotto = preset.motto;
+          document.getElementById("inpBarrelMotto").value = preset.motto;
+          document.getElementById("cellarSlotId").textContent = preset.slot;
+          triggerAutomataFlash();
+          drawBarrelCanvas();
+        });
+      });
+
+      document.getElementById("btnRunAutomata").addEventListener("click", function () {
+        var txt = document.getElementById("farmerPromptInput").value.trim();
+        if (txt.length > 0) {
+          state.barrelMotto = txt.slice(0, 19);
+          document.getElementById("inpBarrelMotto").value = state.barrelMotto;
+        }
+        triggerAutomataFlash();
+        renderScarApp();
+        drawBarrelCanvas();
+      });
+
+      document.querySelectorAll(".lang-switch-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          state.lang = btn.getAttribute("data-lang");
+          renderScarApp();
+        });
+      });
+
+      document.getElementById("btnBoxMinus").addEventListener("click", function () {
+        state.boxQty = Math.max(1, state.boxQty - 1);
+        renderScarApp();
+      });
+      document.getElementById("btnBoxPlus").addEventListener("click", function () {
+        state.boxQty = Math.min(50, state.boxQty + 1);
+        renderScarApp();
+      });
+
+      document.getElementById("btnReserveScar").addEventListener("click", function () {
+        var toast = document.getElementById("scarOrderToast");
+        var d = SCAR_I18N[state.lang] || SCAR_I18N.ko;
+        toast.classList.remove("hidden");
+        toast.textContent = "✓ [직수출 에이전트 체결 완료] 스카 에디션 " + state.boxQty + "박스 (" + d.currFmt(state.boxQty * d.unitPrice) + ") 산지 농가 직수취 계좌 및 콜드체인 송장이 자동 발행되었습니다.";
+      });
+
+      document.getElementById("inpVisitorName").addEventListener("input", function (e) {
+        state.visitorName = e.target.value;
+        drawBarrelCanvas();
+      });
+      document.getElementById("inpBarrelMotto").addEventListener("input", function (e) {
+        state.barrelMotto = e.target.value;
+        drawBarrelCanvas();
+      });
+
+      document.querySelectorAll(".aging-yr-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          state.agingYears = parseInt(btn.getAttribute("data-years"), 10);
+          document.querySelectorAll(".aging-yr-btn").forEach(function (b) {
+            var active = parseInt(b.getAttribute("data-years"), 10) === state.agingYears;
+            b.className = active
+              ? "aging-yr-btn px-2 py-1.5 rounded bg-amber-500/25 text-amber-200 border border-amber-400 font-bold text-[11px]"
+              : "aging-yr-btn px-2 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-semibold text-[11px]";
+          });
+          drawBarrelCanvas();
+        });
+      });
+
+      document.getElementById("btnIssueCertificate").addEventListener("click", function () {
+        var cert = document.getElementById("barrelCertToast");
+        var openYear = 2026 + state.agingYears;
+        var slot = document.getElementById("cellarSlotId").textContent;
+        cert.classList.remove("hidden");
+        cert.innerHTML =
+          "<strong>📜 [코어 에이징 디지털 보관증 발급 완료]</strong><br/>" +
+          "• 각인 명의: <strong>" + escapeHtml(state.visitorName) + "</strong> (" + slot + ")<br/>" +
+          "• 개봉 예정일: <strong>" + openYear + "년 12월 10일</strong> — 숙성 센서 리포트가 분기마다 발송되며 개봉일 30일 전 충청 서바이버 트레일 초대장이 자동 발송됩니다.";
+      });
+
+      // Modals & Clipboard
+      document.getElementById("openQrBtn").addEventListener("click", function () {
+        document.getElementById("qrModal").classList.remove("hidden");
+      });
+      document.getElementById("closeQrBtn").addEventListener("click", function () {
+        document.getElementById("qrModal").classList.add("hidden");
+      });
+      document.getElementById("openBriefBtn").addEventListener("click", function () {
+        document.getElementById("briefModal").classList.remove("hidden");
+      });
+      document.getElementById("closeBriefBtn").addEventListener("click", function () {
+        document.getElementById("briefModal").classList.add("hidden");
+      });
+
+      document.getElementById("btnCopyUrl").addEventListener("click", function () {
+        var url = "https://core2050.soohwalee.com";
+        var toast = document.getElementById("copyToast");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(function () {
+            toast.classList.remove("hidden");
+          }).catch(function () {
+            fallbackCopy(url, toast);
+          });
+        } else {
+          fallbackCopy(url, toast);
+        }
+      });
+
+      // Global Keyboard Shortcuts (matching trc.soohwalee.com convention)
+      window.addEventListener("keydown", function (e) {
+        var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+        if (tag === "input" || tag === "textarea") {
+          if (e.key === "Escape") e.target.blur();
+          return;
+        }
+        if (e.key === "1") switchTab(1);
+        else if (e.key === "2") switchTab(2);
+        else if (e.key === "3") switchTab(3);
+        else if (e.key === "l" || e.key === "L") {
+          setScaleMode(state.scaleMode === "log10" ? "linear" : "log10");
+        } else if (e.key === "q" || e.key === "Q") {
+          document.getElementById("qrModal").classList.toggle("hidden");
+        } else if (e.key === "p" || e.key === "P") {
+          document.getElementById("briefModal").classList.toggle("hidden");
+        } else if (e.key === "Escape") {
+          document.getElementById("qrModal").classList.add("hidden");
+          document.getElementById("briefModal").classList.add("hidden");
+        }
+      });
+    }
+
+    function triggerAutomataFlash() {
+      var bar = document.getElementById("agentPipelineBar");
+      if (!bar) return;
+      bar.classList.add("opacity-40");
+      setTimeout(function () { bar.classList.remove("opacity-40"); }, 180);
+    }
+
+    function fallbackCopy(text, toastEl) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+      if (toastEl) toastEl.classList.remove("hidden");
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    window.addEventListener("DOMContentLoaded", function () {
+      document.getElementById("qrSvgMount").innerHTML = VERIFIED_QR_SVG;
+      renderNodePills();
+      renderSelectedNode();
+      wireAllEvents();
+      initMap();
+      renderScarApp();
+      drawBarrelCanvas();
+      if (window.lucide && typeof window.lucide.createIcons === "function") {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>
