@@ -9,6 +9,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   <style>
     :root {
       --bg-deep: #070b14;
@@ -20,7 +22,9 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
       background: radial-gradient(circle at 15% 15%, #131c31 0%, #070b14 60%, #04070d 100%);
       color: #e2e8f0;
       overflow-x: hidden;
@@ -77,15 +81,58 @@
     .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.45); border-radius: 9999px; }
+
+    /* ===== Readability layer (overrides Tailwind CDN utilities; "html body" raises specificity) ===== */
+    html body { word-break: keep-all; overflow-wrap: break-word; letter-spacing: -0.005em; }
+    html body code, html body .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Pretendard Variable', 'Pretendard', monospace; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    /* type scale: nothing below 12px, body copy at 13–15px */
+    html body .text-\[10px\] { font-size: 12px; line-height: 1.45; }
+    html body .text-\[11px\] { font-size: 12.5px; line-height: 1.6; }
+    html body .text-xs { font-size: 13px; line-height: 1.6; }
+    html body .text-sm { font-size: 14.5px; line-height: 1.65; }
+    html body .text-base { font-size: 16.5px; line-height: 1.5; }
+    html body .text-lg { font-size: 19px; line-height: 1.45; }
+    html body .leading-snug { line-height: 1.55; }
+    html body .leading-tight { line-height: 1.35; }
+    html body p { line-height: 1.7; }
+    html body h1, html body h2, html body h3 { letter-spacing: -0.02em; }
+    /* contrast: lift the muted greys a step on the dark background */
+    html body .text-slate-400 { color: #aab6c8; }
+    html body .text-slate-500 { color: #8b98ad; }
+    html body .text-slate-300 { color: #d3dbe6; }
+    /* tags and badges: no forced uppercase/tracking on Korean */
+    html body .uppercase { text-transform: none; }
+    html body .tracking-wider, html body .tracking-widest { letter-spacing: 0.01em; }
+    /* breathing room for cards and buttons */
+    html body .glass-card { border-color: rgba(148, 163, 184, 0.2); }
+    html body button { touch-action: manipulation; }
+    html body .main-tab-btn { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+    /* keyboard keycaps only make sense with a keyboard */
+    @media (hover: none), (max-width: 640px) {
+      .kbd-hint { display: none !important; }
+    }
+    /* ---- phone layout (QR visitors) ---- */
+    @media (max-width: 640px) {
+      html body .text-xs { font-size: 13.5px; }
+      html body .text-\[11px\] { font-size: 13px; }
+      #appHeader { position: relative; }
+      #hgisMapWrap { height: 440px; }
+      #mapHud { display: none; }
+      #hgisMapWrap .leaflet-control-zoom { display: none; }
+      #nodeDetailCard .max-h-72 { max-height: none; overflow: visible; }
+      #mapLegend { right: 0.75rem; }
+      #lockinReadout > div { flex-direction: column; gap: 0.125rem; }
+      html body main { padding-left: 0.875rem; padding-right: 0.875rem; }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
   <!-- Top Workbench Header -->
-  <header class="sticky top-0 z-50 border-b border-slate-800/90 bg-slate-950/90 backdrop-blur-md">
+  <header id="appHeader" class="sticky top-0 z-50 border-b border-slate-800/90 bg-slate-950/90 backdrop-blur-md">
     <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-700 flex items-center justify-center shadow-lg shadow-amber-500/20 font-black text-slate-950 text-sm">
+        <div class="shrink-0 whitespace-nowrap w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-700 flex items-center justify-center shadow-lg shadow-amber-500/20 font-black text-slate-950 text-sm">
           C50
         </div>
         <div>
@@ -101,15 +148,15 @@
 
       <div class="flex items-center gap-1.5 flex-wrap">
         <button id="quickScaleBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition flex items-center gap-1.5" title="단축키 L: 선형 총량 ↔ 로그스케일 3D 즉시 전환">
-          <span class="px-1.5 py-0.2 bg-amber-400/20 rounded text-[10px] font-mono">L</span>
+          <span class="kbd-hint px-1.5 py-0.5 bg-amber-400/20 rounded text-[10px] font-mono">L</span>
           <span id="quickScaleLabel">로그(log10) 3D 코어 활성</span>
         </button>
         <button id="openBriefBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1">
-          <span class="px-1 bg-slate-700 rounded text-[10px] font-mono">P</span>
+          <span class="kbd-hint px-1 bg-slate-700 rounded text-[10px] font-mono">P</span>
           <span>4대 축 요약</span>
         </button>
         <button id="openQrBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1">
-          <span class="px-1 bg-emerald-500/20 rounded text-[10px] font-mono">Q</span>
+          <span class="kbd-hint px-1 bg-emerald-500/20 rounded text-[10px] font-mono">Q</span>
           <span>현장 QR</span>
         </button>
       </div>
@@ -175,7 +222,7 @@
             <canvas id="prismOverlay"></canvas>
 
             <!-- Floating Top-Left HUD -->
-            <div class="absolute top-3 left-12 z-[450] pointer-events-none max-w-xs bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-xs space-y-1">
+            <div id="mapHud" class="absolute top-3 left-14 z-[450] pointer-events-none max-w-xs bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-xs space-y-1">
               <div class="font-bold text-amber-300 flex items-center gap-1.5">
                 <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                 <span id="hudTitle">log10(미기후 × 숙련 암묵지 × 역사 서사)</span>
@@ -186,7 +233,7 @@
             </div>
 
             <!-- Floating Bottom-Left Legend -->
-            <div class="absolute bottom-3 left-3 z-[450] pointer-events-none bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-[11px] space-y-1.5">
+            <div id="mapLegend" class="absolute bottom-3 left-3 z-[450] pointer-events-none bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 text-[11px] space-y-1.5">
               <div class="font-semibold text-slate-200">3D 프리즘 &amp; 서바이버 트레일 범례</div>
               <div class="flex items-center gap-3 flex-wrap">
                 <span class="flex items-center gap-1 text-amber-300"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> K-애플·인삼·역사 생존 코어</span>
@@ -572,7 +619,7 @@
               </div>
 
               <!-- Lock-in Economics Readout -->
-              <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs space-y-1.5">
+              <div id="lockinReadout" class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs space-y-1.5">
                 <div class="flex justify-between">
                   <span class="text-slate-400">지하 토굴 숙성 슬롯 번호</span>
                   <span id="cellarSlotId" class="font-mono font-bold text-amber-300">YESAN-CAVE #B-042</span>
@@ -608,7 +655,7 @@
         <a href="https://www.ccdailynews.com/news/articleView.html?idxno=2352270" target="_blank" rel="noopener" class="text-amber-300 hover:underline">예산사과와인 추사50 세계 브랜디 품평회 금상</a> ·
         <a href="https://dh.aks.ac.kr/Edu/wiki/index.php/%EA%B9%80%EC%A0%95%ED%9D%AC_%EC%84%A0%EC%83%9D_%EA%B3%A0%ED%83%9D(%E9%87%91%E6%AD%A3%E5%96%9C%E5%85%88%E7%94%9F%E6%95%85%E5%AE%85)" target="_blank" rel="noopener" class="text-amber-300 hover:underline">추사고택 HGIS 좌표</a>
       </div>
-      <div class="font-mono text-slate-500">
+      <div class="kbd-hint font-mono text-slate-500">
         단축키: [1·2·3] 탭 전환 · [L] 선형↔로그 · [P] 4대 축 요약 · [Q] 현장 QR
       </div>
     </footer>
@@ -1270,7 +1317,7 @@
           : ("log " + n.logScore.toFixed(2));
         var labelText = n.shortName + " · " + valStr;
 
-        ctx.font = (isSel ? "700 " : "600 ") + "11px 'Pretendard', sans-serif";
+        ctx.font = (isSel ? "700 " : "600 ") + "12px 'Pretendard Variable', 'Pretendard', sans-serif";
         var tw = ctx.measureText(labelText).width + 12;
         var lx = topX - tw / 2;
         var ly = Math.max(8, topY - colW * 0.6 - 22);
@@ -1486,6 +1533,9 @@
       var ctx1 = document.getElementById("abmIncomeChart");
       var ctx2 = document.getElementById("abmDividendChart");
       if (!ctx1 || !ctx2 || typeof Chart === "undefined") return;
+      Chart.defaults.font.family = "'Pretendard Variable', 'Pretendard', system-ui, sans-serif";
+      Chart.defaults.font.size = 12.5;
+      Chart.defaults.color = "#aab6c8";
 
       if (incomeChart) incomeChart.destroy();
       incomeChart = new Chart(ctx1, {
@@ -1539,7 +1589,7 @@
           maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
           plugins: {
-            legend: { labels: { color: "#cbd5e1", font: { size: 11 } } }
+            legend: { labels: { color: "#cbd5e1", font: { size: 12.5 } } }
           },
           scales: {
             x: { ticks: { color: "#94a3b8", maxTicksLimit: 9 }, grid: { color: "rgba(148,163,184,0.08)" } },
@@ -1597,7 +1647,7 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { labels: { color: "#cbd5e1", font: { size: 11 } } }
+            legend: { labels: { color: "#cbd5e1", font: { size: 12.5 } } }
           },
           scales: {
             x: { stacked: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
@@ -1748,7 +1798,7 @@
       ctx.fillText("CORE AGING · K-CALVADOS", cx, cy - 48);
 
       ctx.fillStyle = "#290d02";
-      ctx.font = "800 12px 'Pretendard', sans-serif";
+      ctx.font = "800 12px 'Pretendard Variable', 'Pretendard', sans-serif";
       var nameTxt = (state.visitorName || "방문객 각인").slice(0, 16);
       ctx.fillText(nameTxt, cx, cy - 16);
       ctx.strokeStyle = "rgba(253, 230, 138, 0.35)";
@@ -1756,7 +1806,7 @@
       ctx.strokeText(nameTxt, cx, cy - 16);
 
       ctx.fillStyle = "#fef3c7";
-      ctx.font = "600 9.5px 'Pretendard', sans-serif";
+      ctx.font = "600 10px 'Pretendard Variable', 'Pretendard', sans-serif";
       var mottoTxt = (state.barrelMotto || "").slice(0, 19);
       ctx.fillText(mottoTxt, cx, cy + 6);
 
